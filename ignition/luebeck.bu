@@ -1,0 +1,39 @@
+variant: fcos
+version: 1.7.0
+
+ignition:
+  config:
+    merge:
+      - local: build/luebeck/common.ign
+
+passwd:
+  users:
+    - name: core
+      ssh_authorized_keys_local:
+        - local/luebeck/authorized_keys
+
+storage:
+  disks:
+    - device: /dev/disk/by-id/coreos-boot-disk
+      wipe_table: false
+      partitions:
+        - number: 4
+          label: root
+          size_mib: 0
+          resize: true
+  filesystems:
+    - device: /dev/disk/by-partlabel/root
+      format: btrfs
+      wipe_filesystem: true
+      label: root
+  files:
+    - path: /etc/hostname
+      mode: 0644
+      overwrite: true
+      contents:
+        inline: |
+          luebeck
+    - path: /etc/bluebuild/image-ref
+      mode: 0644
+      contents:
+        local: local/luebeck/image-ref

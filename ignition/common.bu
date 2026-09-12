@@ -1,0 +1,52 @@
+variant: fcos
+version: 1.7.0
+
+storage:
+  directories:
+    - path: /var/lib/bluebuild-rebase
+      mode: 0700
+  files:
+    - path: /etc/bluebuild/rebase.sh
+      mode: 0755
+      contents:
+        inline: |
+          #!/usr/bin/bash
+          set -euo pipefail
+
+          state_dir=/var/lib/bluebuild-rebase
+          image_ref_file=/etc/bluebuild/image-ref
+          unsigned_marker=${state_dir}/unsigned-requested
+          signed_marker=${state_dir}/signed-requested
+          image_ref=$(tr -d '\n' < "${image_ref_file}")
+
+          if [[ ! -e "${unsigned_marker}" ]]; then
+              rpm-ostree rebase "ostree-unverified-registry:${image_ref}"
+              touch "${unsigned_marker}"
+              systemctl reboot
+              exit 0
+          fi
+
+          if [[ ! -e "${signed_marker}" ]]; then
+              rpm-ostree rebase "ostree-image-signed:docker://${image_ref}"
+              touch "${signed_marker}"
+              systemctl reboot
+          fi
+
+systemd:
+  units:
+    - name: bluebuild-rebase.service
+      enabled: true
+      contents: |
+        [Unit]
+        Description=Rebase Fedora CoreOS to the signed BlueBuild image
+        Wants=network-online.target
+        After=network-online.target
+        ConditionPathExists=/etc/bluebuild/image-ref
+        ConditionPathExists=!/var/lib/bluebuild-rebase/signed-requested
+
+        [Service]
+        Type=oneshot
+        ExecStart=/etc/bluebuild/rebase.sh
+
+        [Install]
+        WantedBy=multi-user.target

@@ -1,0 +1,5 @@
+# coreos-installer install configuration for the full x86_64 live ISO.
+architecture: x86_64
+dest-device: /dev/nvme0n1
+offline: true
+copy-network: true

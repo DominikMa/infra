@@ -1,0 +1,6 @@
+/local/
+/build/
+*.ign
+*.iso
+/cosign.key
+/cosign.private
