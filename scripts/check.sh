@@ -128,8 +128,10 @@ grep -q '^v /var/lib/service-data/headscale 0750 1010 1010 -$' "${tmpfiles}"
 grep -q '^v /var/lib/service-data/caddy 0750 1011 1011 -$' "${tmpfiles}"
 grep -q '^v /var/lib/service-data/adguard 0750 1012 1012 -$' "${tmpfiles}"
 grep -q '^d /var/lib/service-data/adguard/data 0750 1012 1012 -$' "${tmpfiles}"
-grep -q '^d /etc/container-services/adguard 0770 root 1012 -$' "${tmpfiles}"
-grep -q '^z /etc/container-services/adguard/AdGuardHome.yaml 0640 1012 1012 -$' "${tmpfiles}"
+if grep -q '/etc/container-services' "${tmpfiles}"; then
+    echo "Fehler: die Image-Konfiguration darf nicht nachtraeglich durch Tmpfiles umgeschrieben werden." >&2
+    exit 1
+fi
 grep -q '^f /var/lib/systemd/linger/headscale ' "${tmpfiles}"
 grep -q '^f /var/lib/systemd/linger/caddy ' "${tmpfiles}"
 grep -q '^f /var/lib/systemd/linger/adguard ' "${tmpfiles}"
@@ -148,6 +150,16 @@ if rg -n 'configure-luebeck-subids|SUBID_ROOT' \
     echo "Fehler: die entfernte Build-Zeit-SubID-Provisionierung wird noch referenziert." >&2
     exit 1
 fi
+config_owner_script="${repo_root}/files/scripts/configure-luebeck-config-ownership.sh"
+[[ -x "${config_owner_script}" ]] || {
+    echo "Fehler: Build-Skript fuer die Konfigurationseigentuemer fehlt." >&2
+    exit 1
+}
+bash -n "${config_owner_script}"
+for uid in 1010 1011 1012; do
+    grep -q "\"${uid}:${uid}:" "${config_owner_script}"
+done
+grep -q 'configure-luebeck-config-ownership.sh' "${repo_root}/recipes/luebeck.yml"
 
 ssh_config="${repo_root}/files/luebeck/etc/ssh/sshd_config.d/60-service-users.conf"
 grep -q '^Match User headscale,adguard$' "${ssh_config}"
@@ -158,6 +170,20 @@ grep -q 'AllowTcpForwarding no' "${ssh_config}"
 headscale_quadlet="${repo_root}/files/luebeck/etc/containers/systemd/users/1010/headscale.container"
 caddy_quadlet="${repo_root}/files/luebeck/etc/containers/systemd/users/1011/caddy.container"
 adguard_quadlet="${repo_root}/files/luebeck/etc/containers/systemd/users/1012/adguard.container"
+for quadlet in "${headscale_quadlet}" "${caddy_quadlet}" "${adguard_quadlet}"; do
+    grep -q '^Restart=on-failure$' "${quadlet}"
+    grep -q '^RestartSec=30s$' "${quadlet}"
+    if grep -q '^SecurityLabelDisable=' "${quadlet}"; then
+        echo "Fehler: SELinux-Label-Trennung darf nicht deaktiviert werden." >&2
+        exit 1
+    fi
+done
+for uid in 1010 1011 1012; do
+    user_dropin="${repo_root}/files/luebeck/usr/lib/systemd/system/user@${uid}.service.d/10-service-data.conf"
+    grep -q '^Requires=service-data.service$' "${user_dropin}"
+    grep -q '^Wants=network-online.target$' "${user_dropin}"
+    grep -q '^After=network-online.target service-data.service$' "${user_dropin}"
+done
 grep -q '^PublishPort=127.0.0.1:10000:8080/tcp$' \
     "${headscale_quadlet}"
 grep -q '^PublishPort=127.0.0.1:10001:9090/tcp$' \

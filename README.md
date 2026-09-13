@@ -112,6 +112,11 @@ sudo diff -u /usr/etc/container-services/caddy/Caddyfile \
   /etc/container-services/caddy/Caddyfile
 ```
 
+Die maschinenspezifischen Konfigurationsverzeichnisse gehoeren bereits im Image
+dem jeweiligen Service-Benutzer. Dadurch kann Rootless Podman sie fuer die
+weiterhin aktive SELinux-Label-Trennung mit `:Z` kennzeichnen; eine nachtraegliche
+Eigentumsaenderung durch `systemd-tmpfiles` ist nicht erforderlich.
+
 Der lokale YubiKey-Key wird nicht ins OCI-Image aufgenommen. Ignition installiert
 ihn fuer `core` und zusaetzlich unter `/etc/ssh/authorized_keys/headscale` sowie
 `/etc/ssh/authorized_keys/adguard`. `headscale` und `adguard` erlauben
@@ -202,6 +207,9 @@ Die A-/AAAA-Eintraege muessen auf den Server zeigen; TCP 80/443 und fuer HTTP/3
 auch UDP 443 muessen erreichbar sein.
 
 Alle Rootless-Container eines Benutzers haengen an dessen `containers.target`.
+Die systemweiten User-Manager starten erst nach `network-online.target`. Schlaegt
+ein Containerstart dennoch transient fehl, etwa wegen noch nicht verfuegbarem
+DNS, wartet die generierte Unit 30 Sekunden vor dem naechsten Versuch.
 Das gemeinsame `/usr/libexec/service-containers start|stop` steuert deshalb ohne
 Servicenamen immer den gesamten Container-Stack des aufrufenden Benutzers.
 Backups werden als root mit `/usr/libexec/service-backup headscale`, `caddy`
