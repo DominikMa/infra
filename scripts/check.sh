@@ -19,10 +19,11 @@ expect_machine_failure() {
     fi
 }
 
-for target in ignition iso installer; do
+for target in ignition iso installer image publish; do
     expect_machine_failure "${target}" ""
 done
 expect_machine_failure ignition does-not-exist
+expect_machine_failure image does-not-exist
 
 for ignored in local/luebeck/authorized_keys build/luebeck/test.ign test.iso cosign.key; do
     if ! git -C "${repo_root}" check-ignore -q "${ignored}"; then
@@ -37,6 +38,17 @@ fi
 [[ ${failures} -eq 0 ]] || exit 1
 
 command -v podman >/dev/null || { echo "Fehler: podman wird fuer make check benoetigt." >&2; exit 1; }
+for image_script in build-image.sh publish-image.sh; do
+    [[ -x "${repo_root}/scripts/${image_script}" ]] || {
+        echo "Fehler: scripts/${image_script} fehlt oder ist nicht ausfuehrbar." >&2
+        exit 1
+    }
+    bash -n "${repo_root}/scripts/${image_script}"
+done
+grep -q 'bluebuild build --build-driver podman' "${repo_root}/scripts/build-image.sh"
+grep -q 'bluebuild build --push --build-driver podman' "${repo_root}/scripts/publish-image.sh"
+grep -q 'local/${machine}/image-ref' "${repo_root}/scripts/publish-image.sh"
+grep -q 'COSIGN_PRIVATE_KEY' "${repo_root}/scripts/publish-image.sh"
 check_dir=$(mktemp -d)
 trap 'rm -rf -- "${check_dir}"' EXIT
 mkdir -p "${check_dir}/build/luebeck" "${check_dir}/local/luebeck"
@@ -60,6 +72,9 @@ podman_run -v "${check_dir}/repo:/repo" -w /repo "${BLUEBUILD_IMAGE}" \
 
 grep -q 'ostree-unverified-registry:' "${repo_root}/ignition/common.bu"
 grep -q 'ostree-image-signed:docker://' "${repo_root}/ignition/common.bu"
+[[ $(grep -c 'rpm-ostree rebase --bypass-driver' "${repo_root}/ignition/common.bu") -eq 2 ]]
+grep -q 'Restart=on-failure' "${repo_root}/ignition/common.bu"
+grep -q 'RestartSec=30s' "${repo_root}/ignition/common.bu"
 grep -q '"format": "btrfs"' "${check_dir}/build/luebeck/common.ign"
 grep -q '"number": 4' "${check_dir}/build/luebeck/common.ign"
 grep -q '"sizeMiB": 0' "${check_dir}/build/luebeck/common.ign"
@@ -77,6 +92,7 @@ grep -q 'firewalld' "${check_dir}/expanded-recipe.yml"
     echo "Fehler: signing muss das letzte Modul der luebeck-Recipe sein." >&2
     exit 1
 }
+grep -A1 '^alt-tags:$' "${repo_root}/recipes/luebeck.yml" | grep -q '^  - stable$'
 grep -q 'local/luebeck/authorized_keys' "${repo_root}/ignition/luebeck.bu"
 grep -q '/etc/ssh/authorized_keys/headscale' "${repo_root}/ignition/luebeck.bu"
 grep -q '/etc/ssh/authorized_keys/adguard' "${repo_root}/ignition/luebeck.bu"

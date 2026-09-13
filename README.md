@@ -8,11 +8,14 @@ ausschliesslich lokal.
 ## Voraussetzungen
 
 - Podman und GNU Make
+- fuer `make image` und `make publish`: die BlueBuild-CLI
 - fuer den optionalen Smoke-Test: QEMU, OpenSSH und der private SSH-Schluessel
 
-Butane, `ignition-validate`, `coreos-installer`, BlueBuild und Cosign laufen in
-Containern. Vor einem lokalen Build muessen zwei nicht versionierte Dateien
-angelegt werden:
+Butane, `ignition-validate` und `coreos-installer` laufen in gepinnten
+Containern; `make check` verwendet auch BlueBuild auf diese Weise. Die lokalen
+Image-Targets rufen dagegen die installierte BlueBuild-CLI mit Podman als
+Build-Treiber auf. Vor einem lokalen Build muessen zwei nicht versionierte
+Dateien angelegt werden:
 
 ```text
 local/luebeck/authorized_keys
@@ -38,10 +41,41 @@ Die Ergebnisse sind `build/luebeck/luebeck.ign` und
 ueberschreibt `/dev/nvme0n1` vollstaendig. Es nutzt das komplette FCOS-Live-ISO
 offline und uebernimmt die standardmaessige DHCP-Konfiguration.
 
+Das OCI-Systemimage kann unabhaengig von Ignition und Installer-ISO lokal gebaut
+werden:
+
+```bash
+make image MACHINE=luebeck
+```
+
+Zum signierten Build mit anschliessendem Push wird das Ziel aus
+`local/luebeck/image-ref` gelesen. Ohne `GHCR_TOKEN` fragt das Target den Token
+verdeckt interaktiv ab:
+
+```bash
+make publish MACHINE=luebeck
+```
+
+Fuer einen nicht-interaktiven Lauf werden Registry-Token und optional der
+Benutzername nur ueber die Prozessumgebung uebergeben:
+
+```bash
+GHCR_TOKEN='...' GHCR_USERNAME='DominikMa' make publish MACHINE=luebeck
+```
+
+Der Token benoetigt Schreibrecht fuer GitHub Packages. Ein Git-/GitHub-SSH-Key
+kann nur Git-Operationen authentifizieren und ist kein gueltiger GHCR-Login.
+Standardmaessig signiert das Target mit `cosign.key`; ein anderer Pfad kann ueber
+`COSIGN_PRIVATE_KEY_FILE` gesetzt werden. Weder Ignition noch ISO werden dabei
+veroeffentlicht.
+
 Nach dem ersten Start rebased `image-rebase.service` zunaechst auf die
 unverifizierte OCI-Referenz. Nach dem Neustart ist die Signing-Policy des Images
 verfuegbar; die Unit wechselt auf `ostree-image-signed:docker://...`, setzt nach
-erfolgreichem Rebase einen Marker und startet nochmals neu.
+erfolgreichem Rebase einen Marker und startet nochmals neu. Beide bewussten
+Rebase-Operationen umgehen dabei den von Zincati gesetzten Update-Treiber; bei
+einem transienten Fehler, etwa noch nicht verfuegbarem DNS, versucht systemd den
+Schritt nach 30 Sekunden erneut.
 
 ### Deklarative Service-Benutzer und Konfiguration
 

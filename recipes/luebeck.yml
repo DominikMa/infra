@@ -4,6 +4,8 @@ name: luebeck
 description: Declarative Fedora CoreOS image for luebeck
 base-image: quay.io/fedora/fedora-coreos
 image-version: stable
+alt-tags:
+  - stable
 platforms:
   - linux/amd64
 modules:

@@ -39,14 +39,14 @@ storage:
           image_ref=$(tr -d '\n' < "${image_ref_file}")
 
           if [[ ! -e "${unsigned_marker}" ]]; then
-              rpm-ostree rebase "ostree-unverified-registry:${image_ref}"
+              rpm-ostree rebase --bypass-driver "ostree-unverified-registry:${image_ref}"
               touch "${unsigned_marker}"
               systemctl reboot
               exit 0
           fi
 
           if [[ ! -e "${signed_marker}" ]]; then
-              rpm-ostree rebase "ostree-image-signed:docker://${image_ref}"
+              rpm-ostree rebase --bypass-driver "ostree-image-signed:docker://${image_ref}"
               touch "${signed_marker}"
               systemctl reboot
           fi
@@ -66,6 +66,8 @@ systemd:
         [Service]
         Type=oneshot
         ExecStart=/etc/image-rebase/rebase.sh
+        Restart=on-failure
+        RestartSec=30s
 
         [Install]
         WantedBy=multi-user.target

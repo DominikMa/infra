@@ -2,7 +2,7 @@ SHELL := /bin/bash
 
 MACHINES := luebeck
 
-.PHONY: ignition iso installer check smoke signing-key validate-machine
+.PHONY: ignition iso installer image publish check smoke signing-key validate-machine
 
 validate-machine:
 	@./scripts/validate-machine.sh "$(MACHINE)"
@@ -14,6 +14,12 @@ iso: validate-machine
 	@./scripts/build-iso.sh "$(MACHINE)"
 
 installer: ignition iso
+
+image: validate-machine
+	@./scripts/build-image.sh "$(MACHINE)"
+
+publish: validate-machine
+	@./scripts/publish-image.sh "$(MACHINE)"
 
 check:
 	@./scripts/check.sh
