@@ -52,7 +52,31 @@ timeout 1800 bash -c '
             "test \"\$(hostname)\" = luebeck &&
              test \"\$(findmnt -n -o FSTYPE /sysroot)\" = btrfs &&
              ip -4 route show default | grep -q . &&
-             test -e /var/lib/bluebuild-rebase/signed-requested &&
+             test \"\$(id -u caddy)\" = 1011 &&
+             test \"\$(id -u headscale)\" = 1010 &&
+             test \"\$(id -u adguard)\" = 1012 &&
+             test \"\$(getent passwd headscale | cut -d: -f6-7)\" = /var/home/headscale:/bin/bash &&
+             test \"\$(getent passwd caddy | cut -d: -f6-7)\" = /var/home/caddy:/usr/sbin/nologin &&
+             test \"\$(getent passwd adguard | cut -d: -f6-7)\" = /var/home/adguard:/bin/bash &&
+             ! mountpoint -q /var/home/headscale &&
+             ! mountpoint -q /var/home/caddy &&
+             ! mountpoint -q /var/home/adguard &&
+             sudo btrfs subvolume show /var/lib/service-data/headscale >/dev/null &&
+             sudo btrfs subvolume show /var/lib/service-data/caddy >/dev/null &&
+             sudo btrfs subvolume show /var/lib/service-data/adguard >/dev/null &&
+             test -f /etc/containers/systemd/users/1010/headscale.container &&
+             test -f /etc/containers/systemd/users/1011/caddy.container &&
+             test -f /etc/containers/systemd/users/1012/adguard.container &&
+             test -f /etc/systemd/user/containers.target &&
+             test -L /etc/systemd/user/default.target.wants/containers.target &&
+             test -f /var/lib/systemd/linger/headscale &&
+             test -f /var/lib/systemd/linger/caddy &&
+             test -f /var/lib/systemd/linger/adguard &&
+             systemctl is-enabled --quiet firewalld.service &&
+             sudo firewall-cmd --zone=public --query-forward-port=port=80:proto=tcp:toport=11000 &&
+             sudo firewall-cmd --zone=public --query-forward-port=port=443:proto=tcp:toport=11001 &&
+             sudo firewall-cmd --zone=public --query-forward-port=port=53:proto=udp:toport=12000 &&
+             test -e /var/lib/image-rebase/signed-requested &&
              rpm-ostree status --json | jq -e --arg ref \"$2\" \
                '\''any(.deployments[]; .booted and .origin == (\"ostree-image-signed:docker://\" + \$ref))'\''" \
              >/dev/null 2>&1; then
@@ -66,4 +90,24 @@ timeout 1800 bash -c '
     exit 1
 }
 
-echo "Smoke-Test erfolgreich: NVMe-Installation, Btrfs, DHCP/SSH und signierter Origin verifiziert."
+ssh "${ssh_opts[@]}" headscale@127.0.0.1 'test "$(id -u)" = 1010' || {
+    echo "Smoke-Test fehlgeschlagen: SSH-Login fuer headscale funktioniert nicht." >&2
+    exit 1
+}
+ssh "${ssh_opts[@]}" adguard@127.0.0.1 'test "$(id -u)" = 1012' || {
+    echo "Smoke-Test fehlgeschlagen: SSH-Login fuer adguard funktioniert nicht." >&2
+    exit 1
+}
+if ssh "${ssh_opts[@]}" caddy@127.0.0.1 true >/dev/null 2>&1; then
+    echo "Smoke-Test fehlgeschlagen: caddy darf keinen SSH-Login erlauben." >&2
+    exit 1
+fi
+ssh "${ssh_opts[@]}" core@127.0.0.1 \
+    'echo "# smoke drift" | sudo tee -a /etc/container-services/caddy/Caddyfile >/dev/null &&
+     sudo ostree admin config-diff | grep -Eq "M[[:space:]]+container-services/caddy/Caddyfile" &&
+     sudo /usr/libexec/service-backup caddy | grep -q "Borg placeholder"' || {
+    echo "Smoke-Test fehlgeschlagen: config-diff oder Daten-Backup ist fehlerhaft." >&2
+    exit 1
+}
+
+echo "Smoke-Test erfolgreich: Installation, deklarative Benutzer, Daten-Subvolumes, SSH, Drift und Backup verifiziert."

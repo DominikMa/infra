@@ -1,0 +1,25 @@
+[Unit]
+Description=AdGuard Home DNS server
+ConditionPathExists=/etc/container-services/adguard/AdGuardHome.yaml
+PartOf=containers.target
+
+[Container]
+Image=docker.io/adguard/adguardhome:v0.107.79
+ContainerName=adguard
+Network=adguard.network
+Timezone=Europe/Berlin
+Volume=/etc/container-services/adguard:/opt/adguardhome/conf:Z
+Volume=/var/lib/service-data/adguard/data:/opt/adguardhome/work:Z
+PublishPort=12000:53/tcp
+PublishPort=12000:53/udp
+PublishPort=127.0.0.1:12001:80/tcp
+
+[Service]
+Restart=on-failure
+TimeoutStartSec=900
+CPUWeight=20
+MemoryHigh=512M
+MemoryMax=1G
+
+[Install]
+WantedBy=containers.target

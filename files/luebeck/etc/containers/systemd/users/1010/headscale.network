@@ -1,0 +1,5 @@
+[Unit]
+Description=Headscale container network
+
+[Network]
+NetworkName=headscale

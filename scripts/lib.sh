@@ -7,6 +7,8 @@ IGNITION_VALIDATE_IMAGE=${IGNITION_VALIDATE_IMAGE:-quay.io/coreos/ignition-valid
 COREOS_INSTALLER_IMAGE=${COREOS_INSTALLER_IMAGE:-quay.io/coreos/coreos-installer:release}
 BLUEBUILD_IMAGE=${BLUEBUILD_IMAGE:-ghcr.io/blue-build/cli:v0.9.37}
 COSIGN_IMAGE=${COSIGN_IMAGE:-cgr.dev/chainguard/cosign:latest}
+CADDY_IMAGE=${CADDY_IMAGE:-docker.io/library/caddy:2.11.4}
+ADGUARD_IMAGE=${ADGUARD_IMAGE:-docker.io/adguard/adguardhome:v0.107.79}
 
 podman_run() {
     podman run --rm --security-opt label=disable --userns=keep-id "$@"
@@ -20,8 +22,10 @@ validate_local_inputs() {
         echo "Fehler: ${key_file} fehlt oder ist leer." >&2
         return 2
     fi
-    if ! grep -Eq '^(ssh-(ed25519|rsa)|ecdsa-sha2-nistp(256|384|521)|sk-(ssh-ed25519|ecdsa-sha2-nistp256)@openssh.com) [A-Za-z0-9+/]+={0,3}([[:space:]].*)?$' "${key_file}"; then
-        echo "Fehler: ${key_file} enthaelt keinen gueltig aussehenden OpenSSH-Schluessel." >&2
+    if [[ $(awk 'NF && $1 !~ /^#/ { count++ } END { print count + 0 }' "${key_file}") -ne 1 ]] ||
+       ! grep -Eq '^(ssh-(ed25519|rsa)|ecdsa-sha2-nistp(256|384|521)|sk-(ssh-ed25519|ecdsa-sha2-nistp256)@openssh.com) [A-Za-z0-9+/]+={0,3}([[:space:]].*)?$' "${key_file}" ||
+       ! ssh-keygen -l -f "${key_file}" >/dev/null 2>&1; then
+        echo "Fehler: ${key_file} muss genau einen gueltigen OpenSSH-Schluessel enthalten." >&2
         return 2
     fi
     if [[ ! -s "${image_file}" ]]; then

@@ -1,0 +1,24 @@
+[Unit]
+Description=Headscale coordination server
+ConditionPathExists=/etc/container-services/headscale/config.yaml
+PartOf=containers.target
+
+[Container]
+Image=ghcr.io/juanfont/headscale:v0.29.3
+ContainerName=headscale
+Exec=serve
+Network=headscale.network
+Volume=/var/lib/service-data/headscale:/var/lib/headscale:Z
+Volume=/etc/container-services/headscale:/etc/headscale:ro,Z
+PublishPort=127.0.0.1:10000:8080/tcp
+PublishPort=127.0.0.1:10001:9090/tcp
+ReadOnly=true
+Tmpfs=/var/run/headscale
+HealthCmd=headscale health
+
+[Service]
+Restart=on-failure
+TimeoutStartSec=900
+
+[Install]
+WantedBy=containers.target

@@ -1,0 +1,21 @@
+#!/usr/bin/bash
+set -euo pipefail
+
+if [[ $# -ne 1 ]]; then
+    echo "Usage: $0 start|stop" >&2
+    exit 2
+fi
+
+case $1 in
+    start)
+        systemctl --user daemon-reload
+        systemctl --user start containers.target
+        ;;
+    stop)
+        systemctl --user stop containers.target
+        ;;
+    *)
+        echo "Usage: $0 start|stop" >&2
+        exit 2
+        ;;
+esac

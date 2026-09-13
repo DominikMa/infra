@@ -4,13 +4,19 @@ modules:
   - type: dnf
     install:
       packages:
-        - vim
-        - jq
-        - smartmontools
+        - btrfs-progs
+        - firewalld
+        - tmux
+        - fish
+        - htop
+        - ranger
 
   - type: files
     files:
       - source: system
         destination: /
 
-  - type: signing
+  - type: systemd
+    system:
+      enabled:
+        - firewalld.service

@@ -1,20 +1,39 @@
 variant: fcos
 version: 1.7.0
 
+passwd:
+  users:
+    - name: core
+      ssh_authorized_keys_local:
+        - authorized_keys
+
 storage:
+  disks:
+    - device: /dev/disk/by-id/coreos-boot-disk
+      wipe_table: false
+      partitions:
+        - number: 4
+          label: root
+          size_mib: 0
+          resize: true
+  filesystems:
+    - device: /dev/disk/by-partlabel/root
+      format: btrfs
+      wipe_filesystem: true
+      label: root
   directories:
-    - path: /var/lib/bluebuild-rebase
+    - path: /var/lib/image-rebase
       mode: 0700
   files:
-    - path: /etc/bluebuild/rebase.sh
+    - path: /etc/image-rebase/rebase.sh
       mode: 0755
       contents:
         inline: |
           #!/usr/bin/bash
           set -euo pipefail
 
-          state_dir=/var/lib/bluebuild-rebase
-          image_ref_file=/etc/bluebuild/image-ref
+          state_dir=/var/lib/image-rebase
+          image_ref_file=/etc/image-rebase/image-ref
           unsigned_marker=${state_dir}/unsigned-requested
           signed_marker=${state_dir}/signed-requested
           image_ref=$(tr -d '\n' < "${image_ref_file}")
@@ -34,19 +53,19 @@ storage:
 
 systemd:
   units:
-    - name: bluebuild-rebase.service
+    - name: image-rebase.service
       enabled: true
       contents: |
         [Unit]
-        Description=Rebase Fedora CoreOS to the signed BlueBuild image
+        Description=Rebase Fedora CoreOS to the signed system image
         Wants=network-online.target
         After=network-online.target
-        ConditionPathExists=/etc/bluebuild/image-ref
-        ConditionPathExists=!/var/lib/bluebuild-rebase/signed-requested
+        ConditionPathExists=/etc/image-rebase/image-ref
+        ConditionPathExists=!/var/lib/image-rebase/signed-requested
 
         [Service]
         Type=oneshot
-        ExecStart=/etc/bluebuild/rebase.sh
+        ExecStart=/etc/image-rebase/rebase.sh
 
         [Install]
         WantedBy=multi-user.target

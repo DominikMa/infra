@@ -1,0 +1,136 @@
+#!/usr/bin/bash
+set -euo pipefail
+
+if [[ $# -ne 1 ]]; then
+    echo "Usage: $0 SERVICE" >&2
+    exit 2
+fi
+
+service=$1
+if [[ ! "${service}" =~ ^[a-z_][a-z0-9_-]*$ ]]; then
+    echo "Invalid service name: ${service}" >&2
+    exit 2
+fi
+if [[ ${EUID} -ne 0 ]]; then
+    echo "This script must run as root." >&2
+    exit 2
+fi
+
+metadata="/usr/lib/service-backup/${service}.conf"
+if [[ ! -r "${metadata}" ]]; then
+    echo "Unknown service or missing metadata: ${service}" >&2
+    exit 1
+fi
+
+unset SERVICE_USER SERVICE_UID SERVICE_DATA
+# shellcheck source=/dev/null
+source "${metadata}"
+user=${SERVICE_USER-}
+user_id=${SERVICE_UID-}
+data_path=${SERVICE_DATA-}
+if [[ "${user}" != "${service}" ]] ||
+   [[ ! "${user_id}" =~ ^[0-9]+$ ]] ||
+   [[ "${data_path}" != "/var/lib/service-data/${service}" ]]; then
+    echo "Invalid service metadata: ${metadata}" >&2
+    exit 1
+fi
+if [[ $(id -u "${user}" 2>/dev/null) != "${user_id}" ]]; then
+    echo "User ${user} does not exist with UID ${user_id}." >&2
+    exit 1
+fi
+if [[ $(findmnt -n -o FSTYPE --target "${data_path}" 2>/dev/null) != btrfs ]] ||
+   ! btrfs subvolume show "${data_path}" >/dev/null 2>&1; then
+    echo "Service data is not a Btrfs subvolume: ${data_path}" >&2
+    exit 1
+fi
+
+root_device=/dev/disk/by-label/root
+control=/usr/libexec/service-containers
+runtime_root=/run/service-backup
+snapshot_mount="${runtime_root}/${service}"
+timestamp=$(date -u +%Y%m%dT%H%M%SZ)
+snapshot_name="service-backup_${service}_${timestamp}_$$"
+
+if [[ ! -x "${control}" ]]; then
+    echo "Missing container control script: ${control}" >&2
+    exit 1
+fi
+
+install -d -m 0755 "${runtime_root}"
+exec 9>"${runtime_root}/${service}.lock"
+if ! flock --nonblock 9; then
+    echo "A backup for ${service} is already running." >&2
+    exit 1
+fi
+
+systemctl start "user@${user_id}.service"
+
+top_mount=$(mktemp -d "${runtime_root}/top.XXXXXX")
+snapshot_path="${top_mount}/${snapshot_name}"
+snapshot_created=false
+snapshot_readonly=false
+snapshot_mounted=false
+restart_needed=false
+
+run_user_control() {
+    local action=$1
+    runuser -u "${user}" -- env HOME="/home/${user}" \
+        XDG_RUNTIME_DIR="/run/user/${user_id}" "${control}" "${action}"
+}
+
+cleanup() {
+    local status=$?
+    trap - EXIT INT TERM
+
+    if [[ "${restart_needed}" == true ]]; then
+        if ! run_user_control start; then
+            echo "WARNING: failed to restart services for ${service}." >&2
+            status=1
+        fi
+    fi
+    if [[ "${snapshot_mounted}" == true ]]; then
+        umount "${snapshot_mount}" || status=1
+    fi
+    if [[ "${snapshot_created}" == true ]]; then
+        if [[ "${snapshot_readonly}" == true ]]; then
+            btrfs property set -ts "${snapshot_path}" ro false || status=1
+        fi
+        btrfs subvolume delete "${snapshot_path}" || status=1
+    fi
+    umount "${top_mount}" 2>/dev/null || true
+    rmdir "${snapshot_mount}" "${top_mount}" 2>/dev/null || true
+    exit "${status}"
+}
+trap cleanup EXIT
+trap 'exit 130' INT TERM
+
+mount -t btrfs -o subvolid=5 "${root_device}" "${top_mount}"
+if [[ -e "${snapshot_path}" ]]; then
+    echo "Refusing to overwrite existing snapshot path: ${snapshot_path}" >&2
+    exit 1
+fi
+
+restart_needed=true
+run_user_control stop
+btrfs subvolume snapshot "${data_path}" "${snapshot_path}"
+snapshot_created=true
+
+# Keep service downtime limited to stop + snapshot creation.
+run_user_control start
+restart_needed=false
+
+btrfs property set -ts "${snapshot_path}" ro true
+snapshot_readonly=true
+install -d -m 0755 "${snapshot_mount}"
+mount -t btrfs -o "ro,subvol=${snapshot_name},nodev,nosuid,noexec" \
+    "${root_device}" "${snapshot_mount}"
+snapshot_mounted=true
+
+run_borg_backup() {
+    local source=$1
+    # TODO: Configure the Borg repository and credentials, then replace this
+    # placeholder with a borg create invocation using ${source} as its source.
+    echo "Borg placeholder: would back up read-only snapshot at ${source}."
+}
+
+run_borg_backup "${snapshot_mount}"

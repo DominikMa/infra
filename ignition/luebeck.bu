@@ -6,26 +6,10 @@ ignition:
     merge:
       - local: build/luebeck/common.ign
 
-passwd:
-  users:
-    - name: core
-      ssh_authorized_keys_local:
-        - local/luebeck/authorized_keys
-
 storage:
-  disks:
-    - device: /dev/disk/by-id/coreos-boot-disk
-      wipe_table: false
-      partitions:
-        - number: 4
-          label: root
-          size_mib: 0
-          resize: true
-  filesystems:
-    - device: /dev/disk/by-partlabel/root
-      format: btrfs
-      wipe_filesystem: true
-      label: root
+  directories:
+    - path: /etc/ssh/authorized_keys
+      mode: 0700
   files:
     - path: /etc/hostname
       mode: 0644
@@ -33,7 +17,23 @@ storage:
       contents:
         inline: |
           luebeck
-    - path: /etc/bluebuild/image-ref
+    - path: /etc/image-rebase/image-ref
       mode: 0644
       contents:
         local: local/luebeck/image-ref
+    - path: /etc/ssh/authorized_keys/headscale
+      mode: 0600
+      user:
+        id: 1010
+      group:
+        id: 1010
+      contents:
+        local: local/luebeck/authorized_keys
+    - path: /etc/ssh/authorized_keys/adguard
+      mode: 0600
+      user:
+        id: 1012
+      group:
+        id: 1012
+      contents:
+        local: local/luebeck/authorized_keys

@@ -1,0 +1,11 @@
+adguard-admin.home.mairhoefer.xyz {
+	import internal_clients
+
+	handle @internal_clients {
+		reverse_proxy 127.0.0.1:12001
+	}
+
+	handle {
+		abort
+	}
+}

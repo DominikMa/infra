@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<zone>
+  <short>Public</short>
+  <description>Public-facing services for luebeck.</description>
+  <service name="ssh"/>
+  <service name="dhcpv6-client"/>
+  <forward-port port="80" protocol="tcp" to-port="11000"/>
+  <forward-port port="443" protocol="tcp" to-port="11001"/>
+  <forward-port port="443" protocol="udp" to-port="11001"/>
+  <forward-port port="53" protocol="tcp" to-port="12000"/>
+  <forward-port port="53" protocol="udp" to-port="12000"/>
+  <rule family="ipv6">
+    <forward-port port="80" protocol="tcp" to-port="11000"/>
+  </rule>
+  <rule family="ipv6">
+    <forward-port port="443" protocol="tcp" to-port="11001"/>
+  </rule>
+  <rule family="ipv6">
+    <forward-port port="443" protocol="udp" to-port="11001"/>
+  </rule>
+  <rule family="ipv6">
+    <forward-port port="53" protocol="tcp" to-port="12000"/>
+  </rule>
+  <rule family="ipv6">
+    <forward-port port="53" protocol="udp" to-port="12000"/>
+  </rule>
+</zone>

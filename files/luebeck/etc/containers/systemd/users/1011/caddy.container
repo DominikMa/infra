@@ -1,0 +1,21 @@
+[Unit]
+Description=Caddy reverse proxy
+ConditionPathExists=/etc/container-services/caddy/Caddyfile
+PartOf=containers.target
+
+[Container]
+Image=docker.io/library/caddy:2.11.4
+ContainerName=caddy
+Network=host
+Volume=/var/lib/service-data/caddy/data:/data:Z
+Volume=/var/lib/service-data/caddy/config:/config:Z
+Volume=/etc/container-services/caddy:/etc/caddy:ro,Z
+ReadOnly=true
+Tmpfs=/tmp
+
+[Service]
+Restart=on-failure
+TimeoutStartSec=900
+
+[Install]
+WantedBy=containers.target

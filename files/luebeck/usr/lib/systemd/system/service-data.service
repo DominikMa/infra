@@ -1,0 +1,12 @@
+[Unit]
+Description=Verify persistent Btrfs service-data subvolumes
+After=systemd-tmpfiles-setup.service
+Before=user@1010.service user@1011.service user@1012.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/verify-service-data headscale caddy adguard
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

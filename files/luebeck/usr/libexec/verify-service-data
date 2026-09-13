@@ -1,0 +1,31 @@
+#!/usr/bin/bash
+set -euo pipefail
+
+if [[ $# -eq 0 ]]; then
+    echo "Usage: $0 SERVICE [...]" >&2
+    exit 2
+fi
+if [[ ${EUID} -ne 0 ]]; then
+    echo "This script must run as root." >&2
+    exit 2
+fi
+
+for service in "$@"; do
+    if [[ ! "${service}" =~ ^[a-z_][a-z0-9_-]*$ ]]; then
+        echo "Invalid service name: ${service}" >&2
+        exit 2
+    fi
+    path="/var/lib/service-data/${service}"
+    if [[ $(findmnt -n -o FSTYPE --target "${path}" 2>/dev/null) != btrfs ]]; then
+        echo "Service data is not on Btrfs: ${path}" >&2
+        exit 1
+    fi
+    if ! btrfs subvolume show "${path}" >/dev/null 2>&1; then
+        echo "Service data is not a Btrfs subvolume: ${path}" >&2
+        exit 1
+    fi
+    if [[ $(stat -c '%U:%G' "${path}") != "${service}:${service}" ]]; then
+        echo "Unexpected owner for service data: ${path}" >&2
+        exit 1
+    fi
+done

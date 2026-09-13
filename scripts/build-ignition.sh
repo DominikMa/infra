@@ -10,8 +10,9 @@ validate_local_inputs "${machine}"
 output_dir="${repo_root}/build/${machine}"
 mkdir -p "${output_dir}"
 
-podman_run -v "${repo_root}:/work:ro" "${BUTANE_IMAGE}" \
-    --strict --pretty --files-dir /work /work/ignition/common.bu \
+podman_run -v "${repo_root}:/work:ro" \
+    -v "${repo_root}/local/${machine}:/machine-local:ro" "${BUTANE_IMAGE}" \
+    --strict --pretty --files-dir /machine-local /work/ignition/common.bu \
     > "${output_dir}/common.ign"
 
 podman_run -v "${repo_root}:/work:ro" \

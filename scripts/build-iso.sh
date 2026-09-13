@@ -18,15 +18,16 @@ fi
 output_dir="${repo_root}/build/${machine}"
 download_dir="${output_dir}/fcos-live"
 output_iso="${output_dir}/${machine}-installer.iso"
+source_iso_pattern='*-live-iso.*.iso'
 mkdir -p "${download_dir}"
 
-if ! find "${download_dir}" -maxdepth 1 -type f -name '*-live.*.iso' -print -quit | grep -q .; then
+if ! find "${download_dir}" -maxdepth 1 -type f -name "${source_iso_pattern}" -print -quit | grep -q .; then
     podman_run -v "${download_dir}:/data" "${COREOS_INSTALLER_IMAGE}" \
         download --stream stable --architecture "${MACHINE_ARCH}" \
         --platform metal --format iso --directory /data
 fi
 
-mapfile -t source_isos < <(find "${download_dir}" -maxdepth 1 -type f -name '*-live.*.iso' -print | sort)
+mapfile -t source_isos < <(find "${download_dir}" -maxdepth 1 -type f -name "${source_iso_pattern}" -print | sort)
 if [[ ${#source_isos[@]} -ne 1 ]]; then
     echo "Fehler: erwartet genau ein FCOS-Live-ISO in ${download_dir}, gefunden: ${#source_isos[@]}." >&2
     exit 2

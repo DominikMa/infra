@@ -1,0 +1,31 @@
+calender.synology.mairhoefer.xyz {
+	reverse_proxy synology.internal.mairhoefer.xyz:20002
+}
+
+contacts.synology.mairhoefer.xyz {
+	reverse_proxy synology.internal.mairhoefer.xyz:25555
+}
+
+drive.synology.mairhoefer.xyz {
+	reverse_proxy synology.internal.mairhoefer.xyz:10002
+}
+
+photos.synology.mairhoefer.xyz {
+	reverse_proxy synology.internal.mairhoefer.xyz:5080
+}
+
+file.synology.mairhoefer.xyz {
+	reverse_proxy synology.internal.mairhoefer.xyz:7000
+}
+
+synology.home.mairhoefer.xyz {
+	import internal_clients
+
+	handle @internal_clients {
+		reverse_proxy /sharing/* synology.internal.mairhoefer.xyz:5000
+	}
+
+	handle {
+		abort
+	}
+}
