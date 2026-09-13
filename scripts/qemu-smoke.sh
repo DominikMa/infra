@@ -16,6 +16,15 @@ for command in qemu-system-x86_64 qemu-img ssh timeout; do
     command -v "${command}" >/dev/null || { echo "Fehler: ${command} fehlt." >&2; exit 2; }
 done
 
+ovmf_code=${OVMF_CODE:-/usr/share/edk2/ovmf/OVMF_CODE.fd}
+ovmf_vars_template=${OVMF_VARS:-/usr/share/edk2/ovmf/OVMF_VARS.fd}
+for firmware in "${ovmf_code}" "${ovmf_vars_template}"; do
+    if [[ ! -f "${firmware}" ]]; then
+        echo "Fehler: OVMF-Firmware fehlt: ${firmware}" >&2
+        exit 2
+    fi
+done
+
 iso="${repo_root}/build/${machine}/${machine}-installer.iso"
 if [[ ! -s "${iso}" ]]; then
     make --no-print-directory -C "${repo_root}" installer MACHINE="${machine}"
@@ -23,29 +32,73 @@ fi
 
 vm_dir="${repo_root}/build/${machine}/smoke"
 disk="${vm_dir}/${machine}.qcow2"
+installer_serial_log="${vm_dir}/installer-serial.log"
 serial_log="${vm_dir}/serial.log"
+ovmf_vars="${vm_dir}/OVMF_VARS.fd"
 mkdir -p "${vm_dir}"
-rm -f -- "${disk}" "${serial_log}"
+rm -f -- "${disk}" "${installer_serial_log}" "${serial_log}" "${ovmf_vars}"
 qemu-img create -q -f qcow2 "${disk}" 20G
+cp --reflink=auto "${ovmf_vars_template}" "${ovmf_vars}"
 
 qemu_accel=${QEMU_ACCEL:-kvm}
-qemu-system-x86_64 \
-    -name "fcos-${machine}-smoke" -machine q35,accel="${qemu_accel}" \
-    -cpu host -smp 2 -m 4096 -display none -serial "file:${serial_log}" \
-    -drive "if=none,id=nvme0,file=${disk},format=qcow2" \
-    -device nvme,drive=nvme0,serial=smoke-nvme \
-    -drive "file=${iso},media=cdrom,readonly=on" -boot order=c,once=d \
-    -netdev user,id=net0,hostfwd=tcp:127.0.0.1:2222-:22 \
-    -device virtio-net-pci,netdev=net0 &
-qemu_pid=$!
-cleanup() { kill "${qemu_pid}" 2>/dev/null || true; wait "${qemu_pid}" 2>/dev/null || true; }
+qemu_common=(
+    -name "fcos-${machine}-smoke" -machine "q35,accel=${qemu_accel}"
+    -cpu host -smp 2 -m 4096 -display none
+    -drive "if=pflash,format=raw,readonly=on,file=${ovmf_code}"
+    -drive "if=pflash,format=raw,file=${ovmf_vars}"
+    -drive "if=none,id=nvme0,file=${disk},format=qcow2"
+    -device nvme,drive=nvme0,serial=smoke-nvme
+    -device virtio-net-pci,netdev=net0
+)
+
+qemu_pid=
+cleanup() {
+    if [[ -n "${qemu_pid}" ]]; then
+        kill "${qemu_pid}" 2>/dev/null || true
+        wait "${qemu_pid}" 2>/dev/null || true
+    fi
+}
 trap cleanup EXIT
+
+echo "Installiere FCOS vom ISO (maximal 15 Minuten) ..."
+qemu-system-x86_64 \
+    "${qemu_common[@]}" -serial "file:${installer_serial_log}" \
+    -netdev user,id=net0 \
+    -drive "file=${iso},media=cdrom,readonly=on" -boot once=d \
+    -no-reboot &
+qemu_pid=$!
+
+if ! timeout 900 bash -c '
+    while kill -0 "$1" 2>/dev/null; do
+        sleep 1
+    done
+' _ "${qemu_pid}"; then
+    echo "Smoke-Test fehlgeschlagen: Installation dauerte zu lange. Serielle Ausgabe: ${installer_serial_log}" >&2
+    exit 1
+fi
+if wait "${qemu_pid}"; then
+    installer_status=0
+else
+    installer_status=$?
+fi
+qemu_pid=
+if [[ ${installer_status} -ne 0 ]]; then
+    echo "Smoke-Test fehlgeschlagen: Installer-QEMU endete mit Status ${installer_status}. Serielle Ausgabe: ${installer_serial_log}" >&2
+    exit 1
+fi
+
+echo "Starte das installierte System ohne Installer-ISO ..."
+qemu-system-x86_64 \
+    "${qemu_common[@]}" -serial "file:${serial_log}" \
+    -netdev user,id=net0,hostfwd=tcp:127.0.0.1:2222-:22 \
+    -boot order=c &
+qemu_pid=$!
 
 image_ref=$(tr -d '\n' < "${repo_root}/local/${machine}/image-ref")
 ssh_opts=(-i "${ssh_key}" -p 2222 -o BatchMode=yes -o ConnectTimeout=5
           -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null)
 
-echo "Warte auf Installation und beide Rebase-Neustarts (maximal 30 Minuten) ..."
+echo "Warte auf beide Rebase-Neustarts (maximal 30 Minuten) ..."
 timeout 1800 bash -c '
     while kill -0 "$1" 2>/dev/null; do
         if ssh "${@:3}" core@127.0.0.1 \

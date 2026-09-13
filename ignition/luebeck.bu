@@ -11,6 +11,16 @@ storage:
     - path: /etc/ssh/authorized_keys
       mode: 0700
   files:
+    - path: /etc/subuid
+      mode: 0644
+      overwrite: true
+      contents:
+        local: ignition/luebeck/subids
+    - path: /etc/subgid
+      mode: 0644
+      overwrite: true
+      contents:
+        local: ignition/luebeck/subids
     - path: /etc/hostname
       mode: 0644
       overwrite: true

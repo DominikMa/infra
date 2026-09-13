@@ -16,10 +16,6 @@ modules:
       - source: luebeck
         destination: /
 
-  - type: script
-    scripts:
-      - configure-luebeck-subids.sh
-
   - type: systemd
     system:
       enabled:

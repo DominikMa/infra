@@ -45,15 +45,22 @@ for image_script in build-image.sh publish-image.sh; do
     }
     bash -n "${repo_root}/scripts/${image_script}"
 done
+smoke_script="${repo_root}/scripts/qemu-smoke.sh"
+bash -n "${smoke_script}"
+grep -q -- '-no-reboot' "${smoke_script}"
+grep -q 'installer-serial.log' "${smoke_script}"
+grep -q 'OVMF_CODE' "${smoke_script}"
 grep -q 'bluebuild build --build-driver podman' "${repo_root}/scripts/build-image.sh"
 grep -q 'bluebuild build --push --build-driver podman' "${repo_root}/scripts/publish-image.sh"
 grep -q 'local/${machine}/image-ref' "${repo_root}/scripts/publish-image.sh"
 grep -q 'COSIGN_PRIVATE_KEY' "${repo_root}/scripts/publish-image.sh"
 check_dir=$(mktemp -d)
 trap 'rm -rf -- "${check_dir}"' EXIT
-mkdir -p "${check_dir}/build/luebeck" "${check_dir}/local/luebeck"
+mkdir -p "${check_dir}/build/luebeck" "${check_dir}/local/luebeck" \
+    "${check_dir}/ignition/luebeck"
 cp "${repo_root}/tests/fixtures/authorized_keys" "${check_dir}/local/luebeck/authorized_keys"
 cp "${repo_root}/tests/fixtures/image-ref" "${check_dir}/local/luebeck/image-ref"
+cp "${repo_root}/ignition/luebeck/subids" "${check_dir}/ignition/luebeck/subids"
 mkdir -p "${check_dir}/repo"
 cp -R "${repo_root}/recipes" "${repo_root}/files" "${check_dir}/repo/"
 
@@ -97,6 +104,11 @@ grep -q '^Environment=SYSTEMD_TMPFILES_FORCE_SUBVOL=1$' "${tmpfiles_dropin}"
 }
 grep -A1 '^alt-tags:$' "${repo_root}/recipes/luebeck.yml" | grep -q '^  - stable$'
 grep -q 'local/luebeck/authorized_keys' "${repo_root}/ignition/luebeck.bu"
+grep -q 'local: ignition/luebeck/subids' "${repo_root}/ignition/luebeck.bu"
+[[ $(grep -c 'local: ignition/luebeck/subids' "${repo_root}/ignition/luebeck.bu") -eq 2 ]]
+for subid_file in /etc/subuid /etc/subgid; do
+    grep -q "path: ${subid_file}" "${repo_root}/ignition/luebeck.bu"
+done
 grep -q '/etc/ssh/authorized_keys/headscale' "${repo_root}/ignition/luebeck.bu"
 grep -q '/etc/ssh/authorized_keys/adguard' "${repo_root}/ignition/luebeck.bu"
 if grep -q '/etc/ssh/authorized_keys/caddy' "${repo_root}/ignition/luebeck.bu"; then
@@ -122,23 +134,20 @@ grep -q '^f /var/lib/systemd/linger/headscale ' "${tmpfiles}"
 grep -q '^f /var/lib/systemd/linger/caddy ' "${tmpfiles}"
 grep -q '^f /var/lib/systemd/linger/adguard ' "${tmpfiles}"
 
-subid_script="${repo_root}/files/scripts/configure-luebeck-subids.sh"
-[[ -x "${subid_script}" ]] || { echo "Fehler: SubID-Build-Skript fehlt." >&2; exit 1; }
-bash -n "${subid_script}"
-grep -q 'headscale 200000 65536' "${subid_script}"
-grep -q 'caddy 300000 65536' "${subid_script}"
-grep -q 'adguard 400000 65536' "${subid_script}"
-mkdir -p "${check_dir}/subids/etc"
-printf '%s\n' 'core:100000:65536' > "${check_dir}/subids/etc/subuid"
-printf '%s\n' 'core:100000:65536' > "${check_dir}/subids/etc/subgid"
-SUBID_ROOT="${check_dir}/subids" "${subid_script}"
-SUBID_ROOT="${check_dir}/subids" "${subid_script}"
-for subid_file in subuid subgid; do
-    grep -qx 'core:100000:65536' "${check_dir}/subids/etc/${subid_file}"
-    [[ $(grep -xc 'headscale:200000:65536' "${check_dir}/subids/etc/${subid_file}") -eq 1 ]]
-    [[ $(grep -xc 'caddy:300000:65536' "${check_dir}/subids/etc/${subid_file}") -eq 1 ]]
-    [[ $(grep -xc 'adguard:400000:65536' "${check_dir}/subids/etc/${subid_file}") -eq 1 ]]
+subid_ignition="${repo_root}/ignition/luebeck/subids"
+for expected_subid in \
+    core:100000:65536 \
+    headscale:200000:65536 \
+    caddy:300000:65536 \
+    adguard:400000:65536; do
+    [[ $(grep -Fxc "${expected_subid}" "${subid_ignition}") -eq 1 ]]
 done
+[[ $(wc -l < "${subid_ignition}") -eq 4 ]]
+if rg -n 'configure-luebeck-subids|SUBID_ROOT' \
+    "${repo_root}/files" "${repo_root}/recipes" "${repo_root}/ignition"; then
+    echo "Fehler: die entfernte Build-Zeit-SubID-Provisionierung wird noch referenziert." >&2
+    exit 1
+fi
 
 ssh_config="${repo_root}/files/luebeck/etc/ssh/sshd_config.d/60-service-users.conf"
 grep -q '^Match User headscale,adguard$' "${ssh_config}"

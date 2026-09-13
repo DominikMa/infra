@@ -9,7 +9,8 @@ ausschliesslich lokal.
 
 - Podman und GNU Make
 - fuer `make image` und `make publish`: die BlueBuild-CLI
-- fuer den optionalen Smoke-Test: QEMU, OpenSSH und der private SSH-Schluessel
+- fuer den optionalen Smoke-Test: QEMU, OVMF/UEFI-Firmware, OpenSSH und der
+  private SSH-Schluessel
 
 Butane, `ignition-validate` und `coreos-installer` laufen in gepinnten
 Containern; `make check` verwendet auch BlueBuild auf diese Weise. Die lokalen
@@ -88,6 +89,8 @@ und legt stattdessen die persistenten Btrfs-Subvolumes
 `/var/lib/service-data/headscale`, `/var/lib/service-data/caddy` und
 `/var/lib/service-data/adguard` an.
 Eine Boot-Unit verifiziert die Subvolumes, bevor die User-systemd-Manager starten.
+Ignition installiert die festen, nicht ueberlappenden SubUID-/SubGID-Bereiche
+bereits vor dem ersten Boot nach `/etc/subuid` und `/etc/subgid`.
 
 Die Rootless-Quadlets liegen direkt in den von Podman vorgesehenen
 UID-spezifischen Verzeichnissen `/etc/containers/systemd/users/1010` und
@@ -219,9 +222,13 @@ make smoke MACHINE=luebeck SSH_KEY=/pfad/zum/privaten_key
 `make check` benoetigt keine lokalen Secrets. Es transpiliert beide Butane-Stufen
 im Strict-Modus mit Testdaten, validiert die finale Ignition-Datei, expandiert die
 BlueBuild-Recipe und prueft Schutzregeln sowie erwartete Fehlerfaelle. Der
-Smoke-Test baut bei Bedarf das Installer-ISO, startet es mit einer emulierten
-NVMe-Platte und prueft nach den Reboots Hostname, DHCP/SSH, Btrfs und den
-signierten rpm-ostree-Origin.
+Smoke-Test baut bei Bedarf das Installer-ISO und installiert es in einer ersten
+QEMU-Phase mit emulierter NVMe-Platte. Danach startet er dieselbe Platte unter
+OVMF/UEFI ohne eingelegtes ISO und prueft nach den Reboots Hostname, DHCP/SSH,
+Btrfs und den signierten rpm-ostree-Origin. Die Installationsausgabe liegt in
+`build/luebeck/smoke/installer-serial.log`, die Ausgabe des installierten Systems
+in `build/luebeck/smoke/serial.log`. Abweichende Firmwarepfade koennen mit
+`OVMF_CODE` und `OVMF_VARS` gesetzt werden.
 
 ## Image-Signing und CI
 
