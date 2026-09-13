@@ -88,6 +88,9 @@ if grep -q 'provision-btrfs-user@' "${check_dir}/expanded-recipe.yml"; then
 fi
 grep -q 'service-data.service' "${check_dir}/expanded-recipe.yml"
 grep -q 'firewalld' "${check_dir}/expanded-recipe.yml"
+tmpfiles_dropin="${repo_root}/files/luebeck/usr/lib/systemd/system/systemd-tmpfiles-setup.service.d/10-force-btrfs-subvolumes.conf"
+grep -q '^\[Service\]$' "${tmpfiles_dropin}"
+grep -q '^Environment=SYSTEMD_TMPFILES_FORCE_SUBVOL=1$' "${tmpfiles_dropin}"
 [[ $(tail -n 1 "${repo_root}/recipes/luebeck.yml") == "  - type: signing" ]] || {
     echo "Fehler: signing muss das letzte Modul der luebeck-Recipe sein." >&2
     exit 1
