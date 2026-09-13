@@ -15,6 +15,7 @@ Tmpfs=/tmp
 
 [Service]
 Restart=on-failure
+RestartSec=30s
 TimeoutStartSec=900
 
 [Install]

@@ -16,6 +16,7 @@ PublishPort=127.0.0.1:12001:80/tcp
 
 [Service]
 Restart=on-failure
+RestartSec=30s
 TimeoutStartSec=900
 CPUWeight=20
 MemoryHigh=512M

@@ -18,6 +18,7 @@ HealthCmd=headscale health
 
 [Service]
 Restart=on-failure
+RestartSec=30s
 TimeoutStartSec=900
 
 [Install]
