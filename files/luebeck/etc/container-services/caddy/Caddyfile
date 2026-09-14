@@ -1,7 +1,5 @@
 {
 	email service@mairhoefer.xyz
-	http_port 11000
-	https_port 11001
 }
 
 (internal_clients) {

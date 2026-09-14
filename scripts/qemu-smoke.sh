@@ -126,9 +126,11 @@ timeout 1800 bash -c '
              test -f /var/lib/systemd/linger/caddy &&
              test -f /var/lib/systemd/linger/adguard &&
              systemctl is-enabled --quiet firewalld.service &&
-             sudo firewall-cmd --zone=public --query-forward-port=port=80:proto=tcp:toport=11000 &&
-             sudo firewall-cmd --zone=public --query-forward-port=port=443:proto=tcp:toport=11001 &&
-             sudo firewall-cmd --zone=public --query-forward-port=port=53:proto=udp:toport=12000 &&
+             sudo firewall-cmd --zone=public --query-service=dns &&
+             sudo firewall-cmd --zone=public --query-service=http &&
+             sudo firewall-cmd --zone=public --query-service=https &&
+             sudo firewall-cmd --zone=public --query-port=443/udp &&
+             test "\$(sysctl -n net.ipv4.ip_unprivileged_port_start)" = 53 &&
              test -e /var/lib/image-rebase/signed-requested &&
              rpm-ostree status --json | jq -e --arg ref \"$2\" \
                '\''any(.deployments[]; .booted and .origin == (\"ostree-image-signed:docker://\" + \$ref))'\''" \

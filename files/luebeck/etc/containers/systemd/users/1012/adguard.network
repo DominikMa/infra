@@ -3,3 +3,4 @@ Description=AdGuard Home container network
 
 [Network]
 NetworkName=adguard
+IPv6=true

@@ -198,9 +198,13 @@ grep -q '^ConditionPathExists=/etc/container-services/caddy/Caddyfile$' "${caddy
 grep -q '^Image=docker.io/adguard/adguardhome:v0\.107\.79$' "${adguard_quadlet}"
 grep -q '^Volume=/etc/container-services/adguard:/opt/adguardhome/conf:Z$' "${adguard_quadlet}"
 grep -q '^Volume=/var/lib/service-data/adguard/data:/opt/adguardhome/work:Z$' "${adguard_quadlet}"
-grep -q '^PublishPort=12000:53/tcp$' "${adguard_quadlet}"
-grep -q '^PublishPort=12000:53/udp$' "${adguard_quadlet}"
-grep -q '^PublishPort=127.0.0.1:12001:80/tcp$' "${adguard_quadlet}"
+grep -q '^Network=adguard.network$' "${adguard_quadlet}"
+grep -q '^PublishPort=0\.0\.0\.0:53:53/tcp$' "${adguard_quadlet}"
+grep -q '^PublishPort=0\.0\.0\.0:53:53/udp$' "${adguard_quadlet}"
+grep -q '^PublishPort=\[::\]:53:53/tcp$' "${adguard_quadlet}"
+grep -q '^PublishPort=\[::\]:53:53/udp$' "${adguard_quadlet}"
+grep -q '^PublishPort=127\.0\.0\.1:12001:80/tcp$' "${adguard_quadlet}"
+grep -q '^IPv6=true$' "${repo_root}/files/luebeck/etc/containers/systemd/users/1012/adguard.network"
 grep -q '^ConditionPathExists=/etc/container-services/adguard/AdGuardHome.yaml$' "${adguard_quadlet}"
 if find "${repo_root}/files/luebeck/etc/containers/systemd/users" \
     -type f -name '*.volume' -print -quit | grep -q .; then
@@ -257,16 +261,20 @@ if grep -q 'header_up' "${synology_caddyfile}"; then
     echo "Fehler: redundante manuelle Proxy-Header verbleiben in der Synology-Konfiguration." >&2
     exit 1
 fi
-grep -q 'http_port 11000' \
-    "${caddyfile}"
-grep -q 'https_port 11001' \
-    "${caddyfile}"
+if grep -Eq '^\s*(http_port|https_port)\s' "${caddyfile}"; then
+    echo "Fehler: Caddy muss direkt die Standardports 80 und 443 verwenden." >&2
+    exit 1
+fi
 [[ -f "${repo_root}/files/luebeck/etc/container-services/headscale/config.yaml.example" ]]
 [[ ! -e "${repo_root}/files/luebeck/etc/container-services/headscale/config.yaml" ]]
 [[ ! -e "${repo_root}/files/luebeck/etc/container-services/caddy/Caddyfile.example" ]]
 adguard_config="${repo_root}/files/luebeck/etc/container-services/adguard/AdGuardHome.yaml"
 [[ -s "${adguard_config}" ]]
 grep -q '^schema_version: 34$' "${adguard_config}"
+grep -A3 '^  bind_hosts:$' "${adguard_config}" | grep -q '^    - 0\.0\.0\.0$'
+grep -A3 '^  bind_hosts:$' "${adguard_config}" | grep -q '^    - "::"$'
+[[ $(grep -A3 '^  bind_hosts:$' "${adguard_config}" | grep -c '^    - ') -eq 2 ]]
+grep -A1 '^http:$' "${adguard_config}" | grep -q '^  address: 0\.0\.0\.0:80$'
 [[ ! -e "${repo_root}/files/luebeck/etc/headscale" ]]
 [[ ! -e "${repo_root}/files/luebeck/etc/caddy" ]]
 podman_run \
@@ -277,17 +285,17 @@ podman_run --tmpfs /tmp/adguard-work \
     -v "${repo_root}/files/luebeck/etc/container-services/adguard:/opt/adguardhome/conf:ro" \
     "${ADGUARD_IMAGE}" --check-config \
     -c /opt/adguardhome/conf/AdGuardHome.yaml -w /tmp/adguard-work >/dev/null
+sysctl_config="${repo_root}/files/luebeck/etc/sysctl.d/90-unprivileged-ports.conf"
+grep -q '^net\.ipv4\.ip_unprivileged_port_start = 53$' "${sysctl_config}"
 firewalld_zone="${repo_root}/files/luebeck/etc/firewalld/zones/public.xml"
-grep -q '<forward-port port="80" protocol="tcp" to-port="11000"/>' "${firewalld_zone}"
-grep -q '<forward-port port="443" protocol="tcp" to-port="11001"/>' "${firewalld_zone}"
-grep -q '<forward-port port="443" protocol="udp" to-port="11001"/>' "${firewalld_zone}"
-grep -q '<forward-port port="53" protocol="tcp" to-port="12000"/>' "${firewalld_zone}"
-grep -q '<forward-port port="53" protocol="udp" to-port="12000"/>' "${firewalld_zone}"
-[[ $(grep -c '<rule family="ipv6">' "${firewalld_zone}") -eq 5 ]]
 grep -q '<service name="ssh"/>' "${firewalld_zone}"
-if find "${repo_root}/files/luebeck" -type f \
-    \( -name '*port-forward.service' -o -name '*.nft' \) -print -quit | grep -q .; then
-    echo "Fehler: Portweiterleitungen muessen ausschliesslich in firewalld liegen." >&2
+grep -q '<service name="dns"/>' "${firewalld_zone}"
+grep -q '<service name="http"/>' "${firewalld_zone}"
+grep -q '<service name="https"/>' "${firewalld_zone}"
+grep -q '<port port="443" protocol="udp"/>' "${firewalld_zone}"
+if rg -ni 'forward-port|11000|11001|12000' \
+    "${repo_root}/files" "${repo_root}/recipes" "${repo_root}/ignition"; then
+    echo "Fehler: Die entfernten Firewall-Portweiterleitungen werden noch referenziert." >&2
     exit 1
 fi
 backup_orchestrator="${repo_root}/files/system/usr/libexec/service-backup"

@@ -138,11 +138,11 @@ sudo -u headscale env XDG_RUNTIME_DIR=/run/user/1010 \
 
 ### Rootless AdGuard Home
 
-AdGuard Home v0.107.79 verwendet UID/GID 1012 und damit den lokalen Portblock
-ab 12000. DNS wird im Container auf Port 53 angenommen und auf dem Host als
-TCP/UDP 12000 veroeffentlicht. Die Public-Zone von firewalld leitet TCP und UDP
-53 direkt auf 12000 um. Die Weboberflaeche liegt nur lokal auf
-`127.0.0.1:12001` und wird von
+AdGuard Home v0.107.79 verwendet UID/GID 1012 und ein eigenes Container-Netz.
+DNS wird per TCP und UDP als `0.0.0.0:53` und `[::]:53` auf allen IPv4- und
+IPv6-Schnittstellen des Hosts veroeffentlicht; damit ist der Dienst ueber
+externe und interne Adressen sowie localhost erreichbar. Die Weboberflaeche wird nur als
+`127.0.0.1:12001` auf dem Host veroeffentlicht und von
 Caddy als `adguard-admin.home.mairhoefer.xyz` ausschliesslich fuer die im
 `internal_clients`-Snippet definierten Netze bereitgestellt.
 
@@ -174,18 +174,13 @@ Caddys Zertifikate, Schluessel und Laufzeitkonfiguration liegen unter
 `/etc/caddy`.
 
 Der Caddy-Container verwendet Host-Networking und kann dadurch Headscale unter
-`127.0.0.1:10000` erreichen, ohne dessen Port extern zu oeffnen. Die Portbloecke
-folgen den Service-UIDs: Headscale mit UID 1010 verwendet 10000/10001, Caddy mit
-UID 1011 verwendet 11000 fuer HTTP und 11001 fuer HTTPS sowie HTTP/3.
-Die Public-Zone von firewalld leitet TCP 80 nach 11000 sowie TCP und UDP 443
-nach 11001 um. Es wird weder `net.ipv4.ip_unprivileged_port_start` veraendert
-noch einem Benutzer `CAP_NET_BIND_SERVICE` gegeben.
+`127.0.0.1:10000` erreichen, ohne dessen Port extern zu oeffnen. Caddy bindet
+HTTP direkt an Port 80 sowie HTTPS und HTTP/3 direkt an Port 443.
 
-Das gemeinsame Image installiert und aktiviert firewalld. Fuer `luebeck`
-definiert `/etc/firewalld/zones/public.xml` die lokalen Portweiterleitungen fuer
-Caddy und AdGuard deklarativ. Die Regeln enthalten jeweils nur `port`,
-`protocol` und `to-port`; eine Weiterleitungsadresse und separates IP-Forwarding
-sind nicht erforderlich.
+`net.ipv4.ip_unprivileged_port_start = 53` erlaubt den rootless Containern die
+direkte Belegung dieser Ports. firewalld bleibt aktiviert und gibt DNS, HTTP,
+HTTPS sowie HTTP/3 fuer IPv4 und IPv6 frei; Portweiterleitungen sind nicht
+mehr erforderlich.
 
 Das produktive Haupt-Caddyfile enthaelt die globalen Optionen und importiert
 `services/*.caddyfile`. Die Synology-Proxies aus der vorherigen Installation
