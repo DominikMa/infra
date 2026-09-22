@@ -1,13 +1,15 @@
 [connection]
-id=luebeck-lan
+id=luebeck-bridge
 uuid=0e30a6da-1d1e-4209-98b1-ad0d06a3374c
-type=ethernet
-interface-name=enp3s0
+type=bridge
+interface-name=br0
 autoconnect=true
 autoconnect-priority=100
+autoconnect-ports=1
 
-[ethernet]
-mac-address=A8:B8:E0:05:92:E6
+[bridge]
+mac-address=A8:B8:E0:05:92:E5
+stp=false
 
 [ipv4]
 address1=192.168.7.10/24

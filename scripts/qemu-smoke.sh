@@ -108,9 +108,9 @@ timeout 1800 bash -c '
              test \"\$(id -u caddy)\" = 1011 &&
              test \"\$(id -u headscale)\" = 1010 &&
              test \"\$(id -u adguard)\" = 1012 &&
-             test \"\$(getent passwd headscale | cut -d: -f6-7)\" = /var/home/headscale:/bin/bash &&
-             test \"\$(getent passwd caddy | cut -d: -f6-7)\" = /var/home/caddy:/usr/sbin/nologin &&
-             test \"\$(getent passwd adguard | cut -d: -f6-7)\" = /var/home/adguard:/bin/bash &&
+             test \"\$(getent passwd headscale | cut -d: -f6-7)\" = /var/home/headscale:/bin/fish &&
+             test \"\$(getent passwd caddy | cut -d: -f6-7)\" = /var/home/caddy:/bin/fish &&
+             test \"\$(getent passwd adguard | cut -d: -f6-7)\" = /var/home/adguard:/bin/fish &&
              ! mountpoint -q /var/home/headscale &&
              ! mountpoint -q /var/home/caddy &&
              ! mountpoint -q /var/home/adguard &&

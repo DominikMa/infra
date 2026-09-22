@@ -16,6 +16,21 @@ storage:
       overwrite: true
       contents:
         local: files/luebeck/etc/NetworkManager/system-connections/luebeck-lan.nmconnection
+    - path: /etc/NetworkManager/system-connections/luebeck-bridge-enp2s0.nmconnection
+      mode: 0600
+      overwrite: true
+      contents:
+        local: files/luebeck/etc/NetworkManager/system-connections/luebeck-bridge-enp2s0.nmconnection
+    - path: /etc/NetworkManager/system-connections/luebeck-bridge-enp3s0.nmconnection
+      mode: 0600
+      overwrite: true
+      contents:
+        local: files/luebeck/etc/NetworkManager/system-connections/luebeck-bridge-enp3s0.nmconnection
+    - path: /etc/NetworkManager/conf.d/20-luebeck-bridge.conf
+      mode: 0644
+      overwrite: true
+      contents:
+        local: files/luebeck/etc/NetworkManager/conf.d/20-luebeck-bridge.conf
     - path: /etc/subuid
       mode: 0644
       overwrite: true

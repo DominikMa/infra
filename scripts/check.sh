@@ -63,9 +63,9 @@ validate_authorized_keys "${check_dir}/local/luebeck/authorized_keys"
 [[ $(grep -c '^ssh-' "${check_dir}/local/luebeck/authorized_keys") -eq 2 ]]
 cp "${repo_root}/tests/fixtures/image-ref" "${check_dir}/local/luebeck/image-ref"
 cp "${repo_root}/ignition/luebeck/subids" "${check_dir}/ignition/luebeck/subids"
-mkdir -p "${check_dir}/files/luebeck/etc/NetworkManager/system-connections"
-cp "${repo_root}/files/luebeck/etc/NetworkManager/system-connections/luebeck-lan.nmconnection" \
-    "${check_dir}/files/luebeck/etc/NetworkManager/system-connections/luebeck-lan.nmconnection"
+mkdir -p "${check_dir}/files/luebeck/etc"
+cp -R "${repo_root}/files/luebeck/etc/NetworkManager" \
+    "${check_dir}/files/luebeck/etc/"
 mkdir -p "${check_dir}/repo"
 cp -R "${repo_root}/recipes" "${repo_root}/files" "${check_dir}/repo/"
 
@@ -122,9 +122,9 @@ if grep -q '/etc/ssh/authorized_keys/caddy' "${repo_root}/ignition/luebeck.bu"; 
 fi
 
 sysusers="${repo_root}/files/luebeck/usr/lib/sysusers.d/service-users.conf"
-grep -q '^u headscale 1010 .* /var/home/headscale /bin/bash$' "${sysusers}"
-grep -q '^u caddy 1011 .* /var/home/caddy /usr/sbin/nologin$' "${sysusers}"
-grep -q '^u adguard 1012 .* /var/home/adguard /bin/bash$' "${sysusers}"
+grep -q '^u headscale 1010 .* /var/home/headscale /bin/fish$' "${sysusers}"
+grep -q '^u caddy 1011 .* /var/home/caddy /bin/fish$' "${sysusers}"
+grep -q '^u adguard 1012 .* /var/home/adguard /bin/fish$' "${sysusers}"
 tmpfiles="${repo_root}/files/luebeck/usr/lib/tmpfiles.d/service-data.conf"
 grep -q '^d /var/home/headscale 0750 1010 1010 -$' "${tmpfiles}"
 grep -q '^d /var/home/caddy 0750 1011 1011 -$' "${tmpfiles}"
@@ -166,9 +166,13 @@ for uid in 1010 1011 1012; do
 done
 grep -q 'configure-luebeck-config-ownership.sh' "${repo_root}/recipes/luebeck.yml"
 
-network_profile="${repo_root}/files/luebeck/etc/NetworkManager/system-connections/luebeck-lan.nmconnection"
-grep -q '^interface-name=enp3s0$' "${network_profile}"
-grep -q '^mac-address=A8:B8:E0:05:92:E6$' "${network_profile}"
+network_dir="${repo_root}/files/luebeck/etc/NetworkManager"
+network_profile="${network_dir}/system-connections/luebeck-lan.nmconnection"
+grep -q '^type=bridge$' "${network_profile}"
+grep -q '^interface-name=br0$' "${network_profile}"
+grep -q '^mac-address=A8:B8:E0:05:92:E5$' "${network_profile}"
+grep -q '^autoconnect-ports=1$' "${network_profile}"
+grep -q '^stp=false$' "${network_profile}"
 grep -q '^address1=192\.168\.7\.10/24$' "${network_profile}"
 grep -q '^dns=192\.168\.7\.1;$' "${network_profile}"
 grep -q '^gateway=192\.168\.7\.1$' "${network_profile}"
@@ -176,14 +180,30 @@ grep -q '^address1=2a02:8108:142b:ed00:5516:4aac:9e0a:3c00/64$' "${network_profi
 grep -q '^address2=2a02:8108:142b:ed00:3053:ee4e:e36d:61d8/64$' "${network_profile}"
 grep -q '^gateway=fe80::cece:1eff:fea9:5445$' "${network_profile}"
 grep -q '^ip6-privacy=0$' "${network_profile}"
-grep -q '^method=manual$' "${network_profile}"
-grep -q 'NetworkManager/system-connections/luebeck-lan.nmconnection' \
-    "${config_owner_script}"
+[[ $(grep -c '^method=manual$' "${network_profile}") -eq 2 ]]
+for interface in enp2s0 enp3s0; do
+    port_profile="${network_dir}/system-connections/luebeck-bridge-${interface}.nmconnection"
+    grep -q "^interface-name=${interface}$" "${port_profile}"
+    grep -q '^controller=br0$' "${port_profile}"
+    grep -q '^port-type=bridge$' "${port_profile}"
+    [[ $(grep -c '^method=disabled$' "${port_profile}") -eq 2 ]]
+    grep -q "luebeck-bridge-${interface}.nmconnection" "${config_owner_script}"
+    grep -q "local: files/luebeck/etc/NetworkManager/system-connections/luebeck-bridge-${interface}.nmconnection" \
+        "${repo_root}/ignition/luebeck.bu"
+done
+grep -q '^mac-address=A8:B8:E0:05:92:E5$' \
+    "${network_dir}/system-connections/luebeck-bridge-enp2s0.nmconnection"
+grep -q '^mac-address=A8:B8:E0:05:92:E6$' \
+    "${network_dir}/system-connections/luebeck-bridge-enp3s0.nmconnection"
+grep -q '^no-auto-default=interface-name:enp2s0,interface-name:enp3s0$' \
+    "${network_dir}/conf.d/20-luebeck-bridge.conf"
 grep -q 'chmod 0600 "${network_profile}"' "${config_owner_script}"
 grep -q 'local: files/luebeck/etc/NetworkManager/system-connections/luebeck-lan.nmconnection' \
     "${repo_root}/ignition/luebeck.bu"
 grep -A2 'path: /etc/NetworkManager/system-connections/luebeck-lan.nmconnection' \
     "${repo_root}/ignition/luebeck.bu" | grep -q 'mode: 0600'
+grep -A2 'path: /etc/NetworkManager/conf.d/20-luebeck-bridge.conf' \
+    "${repo_root}/ignition/luebeck.bu" | grep -q 'mode: 0644'
 
 ssh_config="${repo_root}/files/luebeck/etc/ssh/sshd_config.d/60-service-users.conf"
 ssh_listeners="${repo_root}/files/luebeck/etc/ssh/sshd_config.d/40-listen-addresses.conf"

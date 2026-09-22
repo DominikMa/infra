@@ -166,23 +166,83 @@ ssh adguard@luebeck \
 Query-Logs, Sessions, Filterkopien und Statistiken werden nicht ins Image
 aufgenommen.
 
-### Feste IPv6-Adressen
+### Transparente Netzwerk-Bridge
 
-Das Image installiert das persistente NetworkManager-Profil `luebeck-lan` fuer
-`enp3s0`, gebunden an dessen MAC-Adresse. IPv4 verwendet statisch
-`192.168.7.10/24` mit Gateway und DNS-Resolver `192.168.7.1`. Das Profil
-hinterlegt außerdem die bisherige IPv6-Adresse
-`2a02:8108:142b:ed00:5516:4aac:9e0a:3c00/64` sowie die zusaetzliche Adresse
-`2a02:8108:142b:ed00:3053:ee4e:e36d:61d8/64` statisch. Der Router
-`fe80::cece:1eff:fea9:5445` ist als IPv6-Gateway eingetragen und temporaere
-Privacy-Adressen sind deaktiviert. Ein nachgelagerter Boot-Dienst ist nicht
-erforderlich. Dieselbe Keyfile-Quelle wird sowohl ins Image als auch in die
-Ignition-Konfiguration aufgenommen, damit die festen Adressen bereits beim
-ersten Boot und weiterhin nach Image-Updates gelten.
+Die beiden I226-V-Adapter an PCI `02:00.0` und `03:00.0` heissen auf `luebeck`
+`enp2s0` und `enp3s0`. Beide sind reine Ports der persistenten Linux-Bridge
+`br0`. Nur die Bridge traegt die bisherige statische Host-Konfiguration:
+`192.168.7.10/24` sowie die beiden globalen IPv6-Adressen
+`2a02:8108:142b:ed00:5516:4aac:9e0a:3c00/64` und
+`2a02:8108:142b:ed00:3053:ee4e:e36d:61d8/64`. Auch DNS und die bisherigen
+IPv4-/IPv6-Gateways bleiben unveraendert. STP ist deaktiviert. Die Maschine
+routet und maskiert den durchgeleiteten Verkehr nicht. NetworkManager erzeugt
+fuer die beiden Ports keine zusaetzlichen Default-Profile.
 
-Der Host-SSH-Server lauscht auf Port 22 an allen IPv4-Adressen und
-ausschliesslich an der primaeren globalen IPv6-Adresse. Die zweite IPv6-Adresse
-bleibt dadurch fuer einen spaeteren Git-SSH-Dienst frei.
+Die Bridge verwendet fest die MAC-Adresse `A8:B8:E0:05:92:E5` von `enp2s0`.
+Sie funktioniert auch mit nur einem angeschlossenen Port: Ist der Router an
+`enp2s0` angeschlossen und `enp3s0` noch ohne Carrier, bleiben `br0` und die
+Host-Adressen ueber `enp2s0` erreichbar. NetworkManager aktiviert beide
+Bridge-Port-Profile automatisch; ein Port ohne Link blockiert den anderen
+nicht.
+
+Das bisherige Keyfile `luebeck-lan.nmconnection` bleibt absichtlich am selben
+Pfad, beschreibt nun aber `br0`. So ersetzt ein Image-Update das bisherige
+statische Profil, statt es als konkurrierendes Profil fuer `enp3s0` zu
+behalten. SSH, Caddy und AdGuard koennen dadurch weiterhin dieselbe primaere
+IPv6-Adresse verwenden.
+
+Vor einer manuellen Umstellung zeigen diese Befehle die Zuordnung nochmals an:
+
+```bash
+nmcli device status
+ip -br link show enp2s0 enp3s0
+readlink -f /sys/bus/pci/devices/0000:02:00.0/net/enp2s0
+readlink -f /sys/bus/pci/devices/0000:03:00.0/net/enp3s0
+```
+
+Die entsprechenden `nmcli`-Befehle fuer eine manuelle Konfiguration sind
+unten dokumentiert. Die Aktivierung sollte an einer lokalen Konsole erfolgen,
+da dabei die bestehende SSH-Verbindung kurzzeitig wegfaellt.
+
+```bash
+sudo nmcli connection add type bridge ifname br0 con-name luebeck-bridge \
+  bridge.stp no \
+  bridge.mac-address A8:B8:E0:05:92:E5 \
+  connection.autoconnect-ports 1 \
+  ipv4.method manual ipv4.addresses 192.168.7.10/24 \
+  ipv4.gateway 192.168.7.1 ipv4.dns 192.168.7.1 \
+  ipv6.method manual \
+  ipv6.addresses 2a02:8108:142b:ed00:5516:4aac:9e0a:3c00/64,2a02:8108:142b:ed00:3053:ee4e:e36d:61d8/64 \
+  ipv6.gateway fe80::cece:1eff:fea9:5445 ipv6.ip6-privacy 0
+sudo nmcli connection add type ethernet ifname enp2s0 \
+  con-name luebeck-bridge-enp2s0 master br0 slave-type bridge
+sudo nmcli connection add type ethernet ifname enp3s0 \
+  con-name luebeck-bridge-enp3s0 master br0 slave-type bridge
+
+# Alte oder automatisch erzeugte Profile fuer enp2s0/enp3s0 zuerst mit
+# `nmcli connection show` identifizieren und dann explizit entfernen, z. B.:
+sudo nmcli connection delete luebeck-lan
+
+sudo nmcli connection up luebeck-bridge
+sudo nmcli connection up luebeck-bridge-enp2s0
+sudo nmcli connection up luebeck-bridge-enp3s0
+```
+
+Nach der Aktivierung beziehungsweise nach einem Neustart:
+
+```bash
+nmcli device status
+nmcli connection show
+ip addr show br0
+ip addr show enp2s0
+ip addr show enp3s0
+bridge link
+bridge fdb show br br0
+```
+
+`enp2s0` und `enp3s0` duerfen dabei keine eigenen IP-Adressen haben. Neben der
+Host-Erreichbarkeit muessen DHCP, Router- und Internet-Erreichbarkeit von einem
+Client hinter dem Switch getestet werden.
 
 ### Rootless Caddy als Reverse Proxy
 
