@@ -1,5 +1,6 @@
 [Unit]
 Description=Verify persistent Btrfs service-data subvolumes
+RequiresMountsFor=/var/lib/service-data
 After=systemd-tmpfiles-setup.service
 Before=user@1010.service user@1011.service user@1012.service
 

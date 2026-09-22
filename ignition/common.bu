@@ -14,13 +14,22 @@ storage:
       partitions:
         - number: 4
           label: root
-          size_mib: 0
+          size_mib: 131072
           resize: true
+        - number: 5
+          label: service-data
+          size_mib: 0
   filesystems:
     - device: /dev/disk/by-partlabel/root
       format: btrfs
       wipe_filesystem: true
       label: root
+    - device: /dev/disk/by-partlabel/service-data
+      format: btrfs
+      wipe_filesystem: false
+      label: service-data
+      path: /var/lib/service-data
+      with_mount_unit: true
   directories:
     - path: /var/lib/image-rebase
       mode: 0700

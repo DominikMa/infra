@@ -3,3 +3,7 @@ architecture: x86_64
 dest-device: /dev/nvme0n1
 offline: true
 copy-network: true
+save-partlabel:
+  - service-data
+save-partindex:
+  - "5"

@@ -89,10 +89,23 @@ grep -q 'Restart=on-failure' "${repo_root}/ignition/common.bu"
 grep -q 'RestartSec=30s' "${repo_root}/ignition/common.bu"
 grep -q '"format": "btrfs"' "${check_dir}/build/luebeck/common.ign"
 grep -q '"number": 4' "${check_dir}/build/luebeck/common.ign"
-grep -q '"sizeMiB": 0' "${check_dir}/build/luebeck/common.ign"
+grep -q '"sizeMiB": 131072' "${check_dir}/build/luebeck/common.ign"
+grep -q '"number": 5' "${check_dir}/build/luebeck/common.ign"
+grep -q '"label": "service-data"' "${check_dir}/build/luebeck/common.ign"
+grep -q '"path": "/var/lib/service-data"' "${check_dir}/build/luebeck/common.ign"
+grep -q '"wipeFilesystem": false' "${check_dir}/build/luebeck/common.ign"
+grep -Fq '"name": "var-lib-service\\x2ddata.mount"' \
+    "${check_dir}/build/luebeck/common.ign"
+grep -Fq 'Where=/var/lib/service-data' "${check_dir}/build/luebeck/common.ign"
+grep -Fq 'What=/dev/disk/by-partlabel/service-data' \
+    "${check_dir}/build/luebeck/common.ign"
 grep -q '^dest-device: /dev/nvme0n1$' "${repo_root}/installer/luebeck.yaml"
 grep -q '^offline: true$' "${repo_root}/installer/luebeck.yaml"
 grep -q '^copy-network: true$' "${repo_root}/installer/luebeck.yaml"
+grep -A1 '^save-partlabel:$' "${repo_root}/installer/luebeck.yaml" | \
+    grep -q '^  - service-data$'
+grep -A1 '^save-partindex:$' "${repo_root}/installer/luebeck.yaml" | \
+    grep -q '^  - "5"$'
 grep -q "source_iso_pattern='\*-live-iso\.\*\.iso'" "${repo_root}/scripts/build-iso.sh"
 if grep -q 'provision-btrfs-user@' "${check_dir}/expanded-recipe.yml"; then
     echo "Fehler: die alte Home-Subvolume-Provisionierung ist noch aktiviert." >&2
@@ -378,6 +391,11 @@ fi
 verify_data="${repo_root}/files/luebeck/usr/libexec/verify-service-data"
 [[ -x "${verify_data}" ]] || { echo "Fehler: Subvolume-Pruefung fehlt." >&2; exit 1; }
 bash -n "${verify_data}"
+grep -q '^RequiresMountsFor=/var/lib/service-data$' \
+    "${repo_root}/files/luebeck/usr/lib/systemd/system/service-data.service"
+grep -q 'mountpoint -q /var/lib/service-data' "${verify_data}"
+grep -q 'LABEL --target /var/lib/service-data' "${verify_data}"
+grep -q '^root_device=/dev/disk/by-label/service-data$' "${backup_orchestrator}"
 if rg -n 'provision-btrfs-user|home_headscale|home_caddy|backup-btrfs-user' \
     "${repo_root}/files" "${repo_root}/recipes" "${repo_root}/ignition"; then
     echo "Fehler: Referenzen auf die alte Home-Subvolume-Architektur verbleiben." >&2

@@ -37,7 +37,7 @@ serial_log="${vm_dir}/serial.log"
 ovmf_vars="${vm_dir}/OVMF_VARS.fd"
 mkdir -p "${vm_dir}"
 rm -f -- "${disk}" "${installer_serial_log}" "${serial_log}" "${ovmf_vars}"
-qemu-img create -q -f qcow2 "${disk}" 20G
+qemu-img create -q -f qcow2 "${disk}" 160G
 cp --reflink=auto "${ovmf_vars_template}" "${ovmf_vars}"
 
 qemu_accel=${QEMU_ACCEL:-kvm}
@@ -104,6 +104,9 @@ timeout 1800 bash -c '
         if ssh "${@:3}" core@127.0.0.1 \
             "test \"\$(hostname)\" = luebeck &&
              test \"\$(findmnt -n -o FSTYPE /sysroot)\" = btrfs &&
+             test \"\$(findmnt -n -o FSTYPE --target /var/lib/service-data)\" = btrfs &&
+             test \"\$(findmnt -n -o LABEL --target /var/lib/service-data)\" = service-data &&
+             mountpoint -q /var/lib/service-data &&
              ip -4 route show default | grep -q . &&
              test \"\$(id -u caddy)\" = 1011 &&
              test \"\$(id -u headscale)\" = 1010 &&

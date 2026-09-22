@@ -44,7 +44,7 @@ if [[ $(findmnt -n -o FSTYPE --target "${data_path}" 2>/dev/null) != btrfs ]] ||
     exit 1
 fi
 
-root_device=/dev/disk/by-label/root
+root_device=/dev/disk/by-label/service-data
 control=/usr/libexec/service-containers
 runtime_root=/run/service-backup
 snapshot_mount="${runtime_root}/${service}"

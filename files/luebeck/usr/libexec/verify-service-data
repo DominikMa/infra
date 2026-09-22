@@ -10,6 +10,16 @@ if [[ ${EUID} -ne 0 ]]; then
     exit 2
 fi
 
+if ! mountpoint -q /var/lib/service-data; then
+    echo "Persistent service-data filesystem is not mounted." >&2
+    exit 1
+fi
+if [[ $(findmnt -n -o FSTYPE --target /var/lib/service-data 2>/dev/null) != btrfs ]] ||
+   [[ $(findmnt -n -o LABEL --target /var/lib/service-data 2>/dev/null) != service-data ]]; then
+    echo "Unexpected filesystem mounted at /var/lib/service-data." >&2
+    exit 1
+fi
+
 for service in "$@"; do
     if [[ ! "${service}" =~ ^[a-z_][a-z0-9_-]*$ ]]; then
         echo "Invalid service name: ${service}" >&2

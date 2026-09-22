@@ -39,9 +39,44 @@ make installer MACHINE=luebeck  # beides
 ```
 
 Die Ergebnisse sind `build/luebeck/luebeck.ign` und
-`build/luebeck/luebeck-installer.iso`. Das ISO installiert ohne Rueckfrage und
-ueberschreibt `/dev/nvme0n1` vollstaendig. Es nutzt das komplette FCOS-Live-ISO
-offline und uebernimmt die standardmaessige DHCP-Konfiguration.
+`build/luebeck/luebeck-installer.iso`. Das ISO installiert ohne Rueckfrage nach
+`/dev/nvme0n1`. Die FCOS-Root-Partition wird bei jeder Installation neu
+geschrieben und als 128-GiB-Btrfs-Dateisystem angelegt. Eine vorhandene
+GPT-Partition mit dem Partitionslabel `service-data` wird dagegen durch
+`coreos-installer` erhalten. Beim ersten Start auf einem leeren Datentraeger
+legt Ignition diese Partition im gesamten verbleibenden Platz an, formatiert
+sie einmalig als Btrfs und mountet sie unter `/var/lib/service-data`. Das ISO
+nutzt das komplette FCOS-Live-ISO offline und uebernimmt die standardmaessige
+DHCP-Konfiguration.
+
+Beim Wechsel einer bestehenden Installation auf dieses Layout koennen die
+bisherigen Service-Daten nicht automatisch erhalten werden: Sie liegen noch
+innerhalb der alten Root-Partition, die den gesamten Datentraeger belegt. Vor
+der ersten Neuinstallation mit dem neuen Layout muss `/var/lib/service-data`
+daher gesichert und danach auf die neue Datenpartition zurueckgespielt werden.
+Ab der darauffolgenden Neuinstallation bleibt die Partition durch
+`save-partlabel: service-data` erhalten. Das schuetzt vor Neuformatierung,
+ersetzt aber kein separates Backup.
+
+Die Partitionsnummern folgen dem FCOS-x86_64-Disk-Image: 1 ist BIOS-Boot, 2 die
+EFI-Systempartition, 3 `/boot` und 4 die Root-Partition. Die eigene
+`service-data`-Partition ist deshalb Nummer 5. `wipe_table: false` gilt fuer
+Ignition: Nicht beschriebene Partitionen werden nicht pauschal geloescht, die
+explizit beschriebenen Partitionen werden aber auf passende Nummer, Label und
+Geometrie geprueft. Root darf mit `resize: true` auf 128 GiB wachsen. Eine
+abweichende Datenpartition wird nicht stillschweigend geloescht; Ignition
+bricht bei einem unvereinbaren Layout ab. Bereits davor schreibt
+`coreos-installer` das FCOS-Image mit den Partitionen 1 bis 4 neu und stellt die
+ueber `save-partlabel` und zusaetzlich `save-partindex` gesicherte
+Datenpartition wieder her. Label und Nummer bilden damit zwei unabhaengige
+Schutzkriterien; das korrekte Label bleibt fuer den spaeteren Mount erforderlich.
+
+`with_mount_unit: true` erzeugt bei jeder Neuinstallation die aktivierte Unit
+`var-lib-service\\x2ddata.mount` unter `/etc/systemd/system`. Sie mountet das
+Btrfs-Dateisystem vor `local-fs.target`. Die Unit ist kein Bestandteil des
+BlueBuild-OCI-Images, bleibt aber als lokaler `/etc`-Zustand bei einem
+rpm-ostree-Rebase erhalten. Bei einer erneuten Installation erzeugt Ignition
+sie wieder aus der eingebetteten Konfiguration.
 
 Das OCI-Systemimage kann unabhaengig von Ignition und Installer-ISO lokal gebaut
 werden:
@@ -86,7 +121,8 @@ Schritt nach 30 Sekunden erneut.
 Verzeichnisse unter
 `/var/home`; sie sind keine eigenen Subvolumes und enthalten nur reproduzierbaren
 Rootless-Podman-Zustand. `systemd-tmpfiles` erzeugt die Homes, aktiviert Linger
-und legt stattdessen die persistenten Btrfs-Subvolumes
+und legt stattdessen auf dem separat gemounteten Daten-Dateisystem die
+persistenten Btrfs-Subvolumes
 `/var/lib/service-data/headscale`, `/var/lib/service-data/caddy` und
 `/var/lib/service-data/adguard` an.
 Eine Boot-Unit verifiziert die Subvolumes, bevor die User-systemd-Manager starten.
