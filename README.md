@@ -129,11 +129,12 @@ Neustart aktiviert. Gibt es keine Aenderung, beendet sich der Dienst mit dem von
 systemd als erfolgreich behandelten Status 77 und startet nicht neu. Verpasste
 Pruefungen werden nach dem naechsten Boot nachgeholt.
 
-Der GitHub-Workflow prueft taeglich um 01:17 UTC die OCI-Version des aktuellen
-`quay.io/fedora/fedora-coreos:stable` gegen die des bereits publizierten
-`luebeck:stable`. Nur bei einer neuen FCOS-Version oder einem fehlenden
-Zielimage wird der geplante BlueBuild ausgefuehrt. Pushes, Pull Requests und
-manuelle Workflow-Aufrufe bauen weiterhin immer.
+Der GitHub-Workflow prueft taeglich um 00:17 UTC den amd64-Manifest-Digest des
+aktuellen `quay.io/fedora/fedora-coreos:stable` gegen BlueBuilds im bereits
+publizierten `luebeck:stable` hinterlegtes Basis-Digest-Label. Nur bei einem
+geaenderten FCOS-Basisimage oder einem fehlenden Zielimage wird der geplante
+BlueBuild ausgefuehrt. Pushes, Pull Requests und manuelle Workflow-Aufrufe bauen
+weiterhin immer.
 
 ### Deklarative Service-Benutzer und Konfiguration
 

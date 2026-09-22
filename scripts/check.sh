@@ -412,8 +412,8 @@ grep -q '^RandomizedDelaySec=30min$' "${image_update_timer}"
 grep -q '^Persistent=true$' "${image_update_timer}"
 
 workflow="${repo_root}/.github/workflows/build.yml"
-grep -A1 '^  schedule:$' "${workflow}" | grep -q 'cron: "17 1 \* \* \*"'
-grep -q 'org.opencontainers.image.version' "${workflow}"
+grep -A1 '^  schedule:$' "${workflow}" | grep -q 'cron: "17 0 \* \* \*"'
+grep -q 'org.opencontainers.image.base.digest' "${workflow}"
 grep -q "if: needs.upstream.outputs.rebuild == 'true'" "${workflow}"
 grep -q 'docker://quay.io/fedora/fedora-coreos:stable' "${workflow}"
 if rg -n 'provision-btrfs-user|home_headscale|home_caddy|backup-btrfs-user' \

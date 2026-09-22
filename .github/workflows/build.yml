@@ -8,7 +8,7 @@ on:
   pull_request:
   workflow_dispatch:
   schedule:
-    - cron: "17 1 * * *"
+    - cron: "17 0 * * *"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
@@ -28,7 +28,7 @@ jobs:
         if: github.event_name != 'schedule'
         run: echo 'rebuild=true' >> "${GITHUB_OUTPUT}"
 
-      - name: Compare scheduled FCOS versions
+      - name: Compare scheduled FCOS base digests
         id: compare
         if: github.event_name == 'schedule'
         env:
@@ -39,29 +39,29 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq skopeo
 
-          upstream_version=$(skopeo inspect --override-arch amd64 \
-            --format '{{ index .Labels "org.opencontainers.image.version" }}' \
+          upstream_digest=$(skopeo inspect --override-arch amd64 \
+            --format '{{ .Digest }}' \
             docker://quay.io/fedora/fedora-coreos:stable)
           owner=${OWNER,,}
           downstream_ref="docker://ghcr.io/${owner}/luebeck:stable"
-          if downstream_version=$(skopeo inspect --override-arch amd64 \
+          if downstream_base_digest=$(skopeo inspect --override-arch amd64 \
             --creds "${GITHUB_ACTOR}:${GH_TOKEN}" \
-            --format '{{ index .Labels "org.opencontainers.image.version" }}' \
+            --format '{{ index .Labels "org.opencontainers.image.base.digest" }}' \
             "${downstream_ref}" 2>/dev/null); then
             :
           else
-            downstream_version=
+            downstream_base_digest=
           fi
 
-          if [[ -z "${upstream_version}" ]]; then
-            echo 'FCOS base image has no org.opencontainers.image.version label.' >&2
+          if [[ -z "${upstream_digest}" ]]; then
+            echo 'FCOS base image has no manifest digest.' >&2
             exit 1
           fi
-          if [[ "${upstream_version}" == "${downstream_version}" ]]; then
-            echo "FCOS ${upstream_version} is already published; skipping rebuild."
+          if [[ "${upstream_digest}" == "${downstream_base_digest}" ]]; then
+            echo "FCOS base ${upstream_digest} is already published; skipping rebuild."
             echo 'rebuild=false' >> "${GITHUB_OUTPUT}"
           else
-            echo "FCOS changed: ${downstream_version:-missing} -> ${upstream_version}."
+            echo "FCOS base changed: ${downstream_base_digest:-missing} -> ${upstream_digest}."
             echo 'rebuild=true' >> "${GITHUB_OUTPUT}"
           fi
 
