@@ -12,12 +12,8 @@ Network=adguard.network
 Timezone=Europe/Berlin
 Volume=/etc/container-services/adguard:/opt/adguardhome/conf:Z
 Volume=/var/lib/service-data/adguard/data:/opt/adguardhome/work:Z
-PublishPort=0.0.0.0:53:53/tcp
-PublishPort=0.0.0.0:53:53/udp
-PublishPort=[::1]:53:53/tcp
-PublishPort=[::1]:53:53/udp
-PublishPort=[2a02:8108:142b:ed00:5516:4aac:9e0a:3c00]:53:53/tcp
-PublishPort=[2a02:8108:142b:ed00:5516:4aac:9e0a:3c00]:53:53/udp
+PublishPort=53:53/tcp
+PublishPort=53:53/udp
 PublishPort=127.0.0.1:12001:80/tcp
 
 [Service]

@@ -287,21 +287,21 @@ grep -q '^Volume=/etc/container-services/adguard:/opt/adguardhome/conf:Z$' "${ad
 grep -q '^Volume=/var/lib/service-data/adguard/data:/opt/adguardhome/work:Z$' "${adguard_quadlet}"
 grep -q '^Network=adguard.network$' "${adguard_quadlet}"
 for dns_mapping in \
-    '0.0.0.0:53:53/tcp' \
-    '0.0.0.0:53:53/udp' \
-    '[::1]:53:53/tcp' \
-    '[::1]:53:53/udp' \
-    '[2a02:8108:142b:ed00:5516:4aac:9e0a:3c00]:53:53/tcp' \
-    '[2a02:8108:142b:ed00:5516:4aac:9e0a:3c00]:53:53/udp'; do
+    '53:53/tcp' \
+    '53:53/udp'; do
     grep -Fqx "PublishPort=${dns_mapping}" "${adguard_quadlet}"
 done
-if grep -q '^PublishPort=\[::\]:53:' "${adguard_quadlet}"; then
-    echo "Fehler: AdGuard DNS darf nicht auf der IPv6-Wildcard lauschen." >&2
+if [[ $(grep -Ec '^PublishPort=.*:53/(tcp|udp)$' "${adguard_quadlet}") -ne 2 ]]; then
+    echo "Fehler: AdGuard DNS muss genau einmal je Protokoll dual-stack veroeffentlicht werden." >&2
     exit 1
 fi
 grep -q '^PublishPort=127\.0\.0\.1:12001:80/tcp$' "${adguard_quadlet}"
 grep -q '^IPv6=true$' "${repo_root}/files/luebeck/etc/containers/systemd/users/1012/adguard.network"
 grep -q '^ConditionPathExists=/etc/container-services/adguard/AdGuardHome.yaml$' "${adguard_quadlet}"
+resolved_dropin="${repo_root}/files/luebeck/etc/systemd/resolved.conf.d/10-disable-stub.conf"
+grep -q '^\[Resolve\]$' "${resolved_dropin}"
+grep -q '^DNSStubListener=no$' "${resolved_dropin}"
+[[ $(readlink "${repo_root}/files/luebeck/etc/resolv.conf") == "/run/systemd/resolve/resolv.conf" ]]
 if find "${repo_root}/files/luebeck/etc/containers/systemd/users" \
     -type f -name '*.volume' -print -quit | grep -q .; then
     echo "Fehler: Service-Daten duerfen keine Podman-Named-Volumes verwenden." >&2

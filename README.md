@@ -222,9 +222,13 @@ sudo -u headscale env XDG_RUNTIME_DIR=/run/user/1010 \
 ### Rootless AdGuard Home
 
 AdGuard Home v0.107.79 verwendet UID/GID 1012 und ein eigenes Container-Netz.
-DNS wird per TCP und UDP als `0.0.0.0:53` und `[::]:53` auf allen IPv4- und
-IPv6-Schnittstellen des Hosts veroeffentlicht; damit ist der Dienst ueber
-externe und interne Adressen sowie localhost erreichbar. Die Weboberflaeche wird nur als
+DNS wird per TCP und UDP ohne eingeschraenkte Host-IP auf Port 53 und damit auf
+allen IPv4- und IPv6-Schnittstellen des Hosts veroeffentlicht; damit ist der
+Dienst ueber externe und interne Adressen sowie localhost erreichbar. Der
+lokale Stub-Listener von `systemd-resolved` ist dafuer deaktiviert. Der Dienst
+selbst bleibt fuer NetworkManagers DNS-Verwaltung aktiv; `/etc/resolv.conf`
+verweist auf seine Uplink-Datei, sodass die Namensaufloesung des Hosts nicht vom
+spaeter startenden AdGuard-Container abhaengt. Die Weboberflaeche wird nur als
 `127.0.0.1:12001` auf dem Host veroeffentlicht und von
 Caddy als `adguard-admin.home.mairhoefer.xyz` ausschliesslich fuer die im
 `internal_clients`-Snippet definierten Netze bereitgestellt.
