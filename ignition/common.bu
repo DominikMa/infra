@@ -18,7 +18,6 @@ storage:
           resize: true
         - number: 5
           label: service-data
-          size_mib: 0
   filesystems:
     - device: /dev/disk/by-partlabel/root
       format: btrfs

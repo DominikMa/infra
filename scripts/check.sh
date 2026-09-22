@@ -91,6 +91,7 @@ grep -q '"format": "btrfs"' "${check_dir}/build/luebeck/common.ign"
 grep -q '"number": 4' "${check_dir}/build/luebeck/common.ign"
 grep -q '"sizeMiB": 131072' "${check_dir}/build/luebeck/common.ign"
 grep -q '"number": 5' "${check_dir}/build/luebeck/common.ign"
+[[ $(grep -c '"sizeMiB":' "${check_dir}/build/luebeck/common.ign") -eq 1 ]]
 grep -q '"label": "service-data"' "${check_dir}/build/luebeck/common.ign"
 grep -q '"path": "/var/lib/service-data"' "${check_dir}/build/luebeck/common.ign"
 grep -q '"wipeFilesystem": false' "${check_dir}/build/luebeck/common.ign"

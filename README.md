@@ -62,14 +62,19 @@ Die Partitionsnummern folgen dem FCOS-x86_64-Disk-Image: 1 ist BIOS-Boot, 2 die
 EFI-Systempartition, 3 `/boot` und 4 die Root-Partition. Die eigene
 `service-data`-Partition ist deshalb Nummer 5. `wipe_table: false` gilt fuer
 Ignition: Nicht beschriebene Partitionen werden nicht pauschal geloescht, die
-explizit beschriebenen Partitionen werden aber auf passende Nummer, Label und
-Geometrie geprueft. Root darf mit `resize: true` auf 128 GiB wachsen. Eine
-abweichende Datenpartition wird nicht stillschweigend geloescht; Ignition
-bricht bei einem unvereinbaren Layout ab. Bereits davor schreibt
+explizit beschriebenen Partitionen werden aber auf die vorgegebenen Merkmale
+geprueft. Root darf mit `resize: true` auf 128 GiB wachsen. Eine unvereinbare
+Datenpartition wird nicht stillschweigend geloescht; Ignition bricht ab. Bereits
+davor schreibt
 `coreos-installer` das FCOS-Image mit den Partitionen 1 bis 4 neu und stellt die
 ueber `save-partlabel` und zusaetzlich `save-partindex` gesicherte
 Datenpartition wieder her. Label und Nummer bilden damit zwei unabhaengige
 Schutzkriterien; das korrekte Label bleibt fuer den spaeteren Mount erforderlich.
+Die Groesse von Partition 5 ist bewusst nicht fest vorgegeben: Bei der ersten
+Installation belegt sie den groessten verbleibenden freien Bereich; bei einer
+Neuinstallation akzeptiert Ignition die durch den Installer erhaltene reale
+Groesse. Dadurch fuehren kleine GPT-Ausrichtungsunterschiede nicht zu einem
+Fehler.
 
 `with_mount_unit: true` erzeugt bei jeder Neuinstallation die aktivierte Unit
 `var-lib-service\\x2ddata.mount` unter `/etc/systemd/system`. Sie mountet das
@@ -113,6 +118,22 @@ erfolgreichem Rebase einen Marker und startet nochmals neu. Beide bewussten
 Rebase-Operationen umgehen dabei den von Zincati gesetzten Update-Treiber; bei
 einem transienten Fehler, etwa noch nicht verfuegbarem DNS, versucht systemd den
 Schritt nach 30 Sekunden erneut.
+
+Danach uebernimmt `image-update.timer` die Aktualisierung des eigenen
+OCI-Systemimages; Zincati ist im abgeleiteten Image maskiert, weil dessen
+Cincinnati-Graph den eigenen GHCR-Digest nicht kennt. Der Timer prueft taeglich
+um 04:00 Uhr Europe/Berlin mit bis zu 30 Minuten zufaelliger Verzoegerung den
+bereits konfigurierten, signierten `luebeck:stable`-Origin. Ein neuer Digest wird
+transaktional als neues Deployment bereitgestellt und anschliessend durch einen
+Neustart aktiviert. Gibt es keine Aenderung, beendet sich der Dienst mit dem von
+systemd als erfolgreich behandelten Status 77 und startet nicht neu. Verpasste
+Pruefungen werden nach dem naechsten Boot nachgeholt.
+
+Der GitHub-Workflow prueft taeglich um 01:17 UTC die OCI-Version des aktuellen
+`quay.io/fedora/fedora-coreos:stable` gegen die des bereits publizierten
+`luebeck:stable`. Nur bei einer neuen FCOS-Version oder einem fehlenden
+Zielimage wird der geplante BlueBuild ausgefuehrt. Pushes, Pull Requests und
+manuelle Workflow-Aufrufe bauen weiterhin immer.
 
 ### Deklarative Service-Benutzer und Konfiguration
 
