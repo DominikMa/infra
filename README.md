@@ -172,9 +172,18 @@ sudo diff -u /usr/etc/container-services/caddy/Caddyfile \
 ```
 
 Die maschinenspezifischen Konfigurationsverzeichnisse gehoeren bereits im Image
-dem jeweiligen Service-Benutzer. Dadurch kann Rootless Podman sie fuer die
-weiterhin aktive SELinux-Label-Trennung mit `:Z` kennzeichnen; eine nachtraegliche
-Eigentumsaenderung durch `systemd-tmpfiles` ist nicht erforderlich.
+dem jeweiligen Service-Benutzer. Da der OSTree-Drei-Wege-Merge unter `/etc`
+lokale Verzeichnismetadaten erhalten kann, stellt `service-data.service` diese
+Eigentuemer als root vor dem Start der User-systemd-Manager nochmals rekursiv
+sicher. Dafuer wird bewusst nicht `systemd-tmpfiles` verwendet, dessen Schutz
+vor unsicheren Pfaduebergaengen bei nicht root-gehoerenden Verzeichnissen
+greifen kann. Dadurch kann Rootless Podman die Verzeichnisse fuer die weiterhin
+aktive SELinux-Label-Trennung mit `:Z` kennzeichnen.
+
+Fehlgeschlagene Containerstarts werden fruehestens nach 30 Sekunden wiederholt.
+Nach fuenf Startversuchen innerhalb von zehn Minuten greift zusaetzlich das
+systemd-Startlimit; ein dauerhaft defekter Container wird dadurch nicht
+unbegrenzt neu erzeugt.
 
 Der lokale YubiKey-Key wird nicht ins OCI-Image aufgenommen. Ignition installiert
 ihn fuer `core` und zusaetzlich unter `/etc/ssh/authorized_keys/headscale` sowie

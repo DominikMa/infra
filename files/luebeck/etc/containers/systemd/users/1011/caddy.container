@@ -2,6 +2,8 @@
 Description=Caddy reverse proxy
 ConditionPathExists=/etc/container-services/caddy/Caddyfile
 PartOf=containers.target
+StartLimitIntervalSec=10min
+StartLimitBurst=5
 
 [Container]
 Image=docker.io/library/caddy:2.11.4

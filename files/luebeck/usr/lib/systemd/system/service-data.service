@@ -6,6 +6,7 @@ Before=user@1010.service user@1011.service user@1012.service
 
 [Service]
 Type=oneshot
+ExecStartPre=/usr/libexec/ensure-service-config-ownership
 ExecStart=/usr/libexec/verify-service-data headscale caddy adguard
 RemainAfterExit=yes
 

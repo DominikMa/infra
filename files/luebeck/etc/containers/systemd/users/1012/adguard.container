@@ -2,6 +2,8 @@
 Description=AdGuard Home DNS server
 ConditionPathExists=/etc/container-services/adguard/AdGuardHome.yaml
 PartOf=containers.target
+StartLimitIntervalSec=10min
+StartLimitBurst=5
 
 [Container]
 Image=docker.io/adguard/adguardhome:v0.107.79

@@ -150,7 +150,7 @@ grep -q '^v /var/lib/service-data/caddy 0750 1011 1011 -$' "${tmpfiles}"
 grep -q '^v /var/lib/service-data/adguard 0750 1012 1012 -$' "${tmpfiles}"
 grep -q '^d /var/lib/service-data/adguard/data 0750 1012 1012 -$' "${tmpfiles}"
 if grep -q '/etc/container-services' "${tmpfiles}"; then
-    echo "Fehler: die Image-Konfiguration darf nicht nachtraeglich durch Tmpfiles umgeschrieben werden." >&2
+    echo "Fehler: Eigentum der Image-Konfiguration darf nicht durch Tmpfiles korrigiert werden." >&2
     exit 1
 fi
 grep -q '^f /var/lib/systemd/linger/headscale ' "${tmpfiles}"
@@ -238,6 +238,8 @@ adguard_quadlet="${repo_root}/files/luebeck/etc/containers/systemd/users/1012/ad
 for quadlet in "${headscale_quadlet}" "${caddy_quadlet}" "${adguard_quadlet}"; do
     grep -q '^Restart=on-failure$' "${quadlet}"
     grep -q '^RestartSec=30s$' "${quadlet}"
+    grep -q '^StartLimitIntervalSec=10min$' "${quadlet}"
+    grep -q '^StartLimitBurst=5$' "${quadlet}"
     if grep -q '^SecurityLabelDisable=' "${quadlet}"; then
         echo "Fehler: SELinux-Label-Trennung darf nicht deaktiviert werden." >&2
         exit 1
@@ -392,10 +394,22 @@ fi
     exit 1
 }
 verify_data="${repo_root}/files/luebeck/usr/libexec/verify-service-data"
+ensure_config_ownership="${repo_root}/files/luebeck/usr/libexec/ensure-service-config-ownership"
 [[ -x "${verify_data}" ]] || { echo "Fehler: Subvolume-Pruefung fehlt." >&2; exit 1; }
 bash -n "${verify_data}"
 grep -q '^RequiresMountsFor=/var/lib/service-data$' \
     "${repo_root}/files/luebeck/usr/lib/systemd/system/service-data.service"
+grep -q '^ExecStartPre=/usr/libexec/ensure-service-config-ownership$' \
+    "${repo_root}/files/luebeck/usr/lib/systemd/system/service-data.service"
+[[ -x "${ensure_config_ownership}" ]] || {
+    echo "Fehler: Korrektur der Konfigurationseigentuemer fehlt." >&2
+    exit 1
+}
+bash -n "${ensure_config_ownership}"
+for service_config in headscale caddy adguard; do
+    grep -q "/etc/container-services/${service_config}" "${ensure_config_ownership}"
+done
+grep -q 'chown -R --no-dereference' "${ensure_config_ownership}"
 grep -q 'mountpoint -q /var/lib/service-data' "${verify_data}"
 grep -q 'LABEL --target /var/lib/service-data' "${verify_data}"
 grep -q '^root_device=/dev/disk/by-label/service-data$' "${backup_orchestrator}"

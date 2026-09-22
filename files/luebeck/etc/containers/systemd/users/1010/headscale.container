@@ -2,6 +2,8 @@
 Description=Headscale coordination server
 ConditionPathExists=/etc/container-services/headscale/config.yaml
 PartOf=containers.target
+StartLimitIntervalSec=10min
+StartLimitBurst=5
 
 [Container]
 Image=ghcr.io/juanfont/headscale:v0.29.3

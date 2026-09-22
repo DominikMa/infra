@@ -1,0 +1,19 @@
+#!/usr/bin/bash
+set -euo pipefail
+
+for owner_and_path in \
+    "1010:1010:/etc/container-services/headscale" \
+    "1011:1011:/etc/container-services/caddy" \
+    "1012:1012:/etc/container-services/adguard"; do
+    owner=${owner_and_path%%:*}
+    remainder=${owner_and_path#*:}
+    group=${remainder%%:*}
+    path=${remainder#*:}
+
+    if [[ ! -d "${path}" || -L "${path}" ]]; then
+        echo "Service configuration directory is missing or a symlink: ${path}" >&2
+        exit 1
+    fi
+
+    chown -R --no-dereference "${owner}:${group}" "${path}"
+done
