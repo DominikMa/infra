@@ -1,0 +1,11 @@
+[Unit]
+Description=Stage and reboot into an updated signed system image
+Wants=network-online.target
+After=network-online.target
+ConditionPathExists=/var/lib/image-rebase/signed-requested
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/rpm-ostree upgrade --reboot --unchanged-exit-77
+SuccessExitStatus=77
+TimeoutStartSec=30min

@@ -7,14 +7,75 @@ on:
       - "**.md"
   pull_request:
   workflow_dispatch:
+  schedule:
+    - cron: "17 1 * * *"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
   cancel-in-progress: true
 
 jobs:
+  upstream:
+    name: Check FCOS base image
+    runs-on: ubuntu-latest
+    permissions:
+      packages: read
+    outputs:
+      rebuild: ${{ steps.decision.outputs.rebuild }}
+    steps:
+      - name: Always build repository-triggered runs
+        id: immediate
+        if: github.event_name != 'schedule'
+        run: echo 'rebuild=true' >> "${GITHUB_OUTPUT}"
+
+      - name: Compare scheduled FCOS versions
+        id: compare
+        if: github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq skopeo
+
+          upstream_version=$(skopeo inspect --override-arch amd64 \
+            --format '{{ index .Labels "org.opencontainers.image.version" }}' \
+            docker://quay.io/fedora/fedora-coreos:stable)
+          owner=${OWNER,,}
+          downstream_ref="docker://ghcr.io/${owner}/luebeck:stable"
+          if downstream_version=$(skopeo inspect --override-arch amd64 \
+            --creds "${GITHUB_ACTOR}:${GH_TOKEN}" \
+            --format '{{ index .Labels "org.opencontainers.image.version" }}' \
+            "${downstream_ref}" 2>/dev/null); then
+            :
+          else
+            downstream_version=
+          fi
+
+          if [[ -z "${upstream_version}" ]]; then
+            echo 'FCOS base image has no org.opencontainers.image.version label.' >&2
+            exit 1
+          fi
+          if [[ "${upstream_version}" == "${downstream_version}" ]]; then
+            echo "FCOS ${upstream_version} is already published; skipping rebuild."
+            echo 'rebuild=false' >> "${GITHUB_OUTPUT}"
+          else
+            echo "FCOS changed: ${downstream_version:-missing} -> ${upstream_version}."
+            echo 'rebuild=true' >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Export build decision
+        id: decision
+        env:
+          IMMEDIATE: ${{ steps.immediate.outputs.rebuild }}
+          SCHEDULED: ${{ steps.compare.outputs.rebuild }}
+        run: echo "rebuild=${IMMEDIATE:-${SCHEDULED}}" >> "${GITHUB_OUTPUT}"
+
   image:
     name: Build ${{ matrix.recipe }}
+    needs: upstream
+    if: needs.upstream.outputs.rebuild == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read

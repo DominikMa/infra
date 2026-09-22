@@ -24,5 +24,8 @@ modules:
     system:
       enabled:
         - service-data.service
+        - image-update.timer
+      masked:
+        - zincati.service
 
   - type: signing

@@ -112,6 +112,8 @@ if grep -q 'provision-btrfs-user@' "${check_dir}/expanded-recipe.yml"; then
     exit 1
 fi
 grep -q 'service-data.service' "${check_dir}/expanded-recipe.yml"
+grep -q 'image-update.timer' "${check_dir}/expanded-recipe.yml"
+grep -q 'zincati.service' "${check_dir}/expanded-recipe.yml"
 grep -q 'firewalld' "${check_dir}/expanded-recipe.yml"
 tmpfiles_dropin="${repo_root}/files/luebeck/usr/lib/systemd/system/systemd-tmpfiles-setup.service.d/10-force-btrfs-subvolumes.conf"
 grep -q '^\[Service\]$' "${tmpfiles_dropin}"
@@ -396,6 +398,23 @@ grep -q '^RequiresMountsFor=/var/lib/service-data$' \
 grep -q 'mountpoint -q /var/lib/service-data' "${verify_data}"
 grep -q 'LABEL --target /var/lib/service-data' "${verify_data}"
 grep -q '^root_device=/dev/disk/by-label/service-data$' "${backup_orchestrator}"
+
+image_update_service="${repo_root}/files/luebeck/usr/lib/systemd/system/image-update.service"
+image_update_timer="${repo_root}/files/luebeck/usr/lib/systemd/system/image-update.timer"
+grep -q '^ExecStart=/usr/bin/rpm-ostree upgrade --reboot --unchanged-exit-77$' \
+    "${image_update_service}"
+grep -q '^SuccessExitStatus=77$' "${image_update_service}"
+grep -q '^ConditionPathExists=/var/lib/image-rebase/signed-requested$' \
+    "${image_update_service}"
+grep -q '^OnCalendar=\*-\*-\* 04:00:00 Europe/Berlin$' "${image_update_timer}"
+grep -q '^RandomizedDelaySec=30min$' "${image_update_timer}"
+grep -q '^Persistent=true$' "${image_update_timer}"
+
+workflow="${repo_root}/.github/workflows/build.yml"
+grep -A1 '^  schedule:$' "${workflow}" | grep -q 'cron: "17 1 \* \* \*"'
+grep -q 'org.opencontainers.image.version' "${workflow}"
+grep -q "if: needs.upstream.outputs.rebuild == 'true'" "${workflow}"
+grep -q 'docker://quay.io/fedora/fedora-coreos:stable' "${workflow}"
 if rg -n 'provision-btrfs-user|home_headscale|home_caddy|backup-btrfs-user' \
     "${repo_root}/files" "${repo_root}/recipes" "${repo_root}/ignition"; then
     echo "Fehler: Referenzen auf die alte Home-Subvolume-Architektur verbleiben." >&2
