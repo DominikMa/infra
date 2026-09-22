@@ -32,16 +32,37 @@ validate_authorized_keys() {
     [[ ${key_count} -ge 1 ]]
 }
 
+validate_ssh_host_key_pair() {
+    local private_key=$1 public_key=$2 private_mode
+    local derived_type derived_data public_type public_data remainder
+
+    [[ -s "${private_key}" && -s "${public_key}" ]] || return 1
+
+    private_mode=$(stat -c '%a' "${private_key}") || return 1
+    (( (8#${private_mode} & 8#077) == 0 )) || return 1
+
+    read -r derived_type derived_data remainder <<<"$(ssh-keygen -y -f "${private_key}" 2>/dev/null)"
+    read -r public_type public_data remainder < "${public_key}"
+    [[ "${derived_type}" == ssh-ed25519 && "${public_type}" == ssh-ed25519 &&
+       -n "${derived_data}" && "${derived_data}" == "${public_data}" ]]
+}
+
 validate_local_inputs() {
-    local machine=$1 key_file image_file image_ref
+    local machine=$1 key_file image_file image_ref host_private host_public
     key_file="${repo_root}/local/${machine}/authorized_keys"
     image_file="${repo_root}/local/${machine}/image-ref"
+    host_private="${repo_root}/local/${machine}/host_key/ssh_host_ed25519_key"
+    host_public="${host_private}.pub"
     if [[ ! -s "${key_file}" ]]; then
         echo "Fehler: ${key_file} fehlt oder ist leer." >&2
         return 2
     fi
     if ! validate_authorized_keys "${key_file}"; then
         echo "Fehler: ${key_file} muss mindestens einen gueltigen OpenSSH-Schluessel enthalten." >&2
+        return 2
+    fi
+    if ! validate_ssh_host_key_pair "${host_private}" "${host_public}"; then
+        echo "Fehler: ${host_private} und ${host_public} muessen ein passendes Ed25519-Host-Key-Paar sein; der private Schluessel darf keine Gruppen- oder Weltrechte haben." >&2
         return 2
     fi
     if [[ ! -s "${image_file}" ]]; then

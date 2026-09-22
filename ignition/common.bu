@@ -33,6 +33,16 @@ storage:
     - path: /var/lib/image-rebase
       mode: 0700
   files:
+    - path: /etc/ssh/ssh_host_ed25519_key
+      mode: 0600
+      overwrite: true
+      contents:
+        local: host_key/ssh_host_ed25519_key
+    - path: /etc/ssh/ssh_host_ed25519_key.pub
+      mode: 0644
+      overwrite: true
+      contents:
+        local: host_key/ssh_host_ed25519_key.pub
     - path: /etc/image-rebase/rebase.sh
       mode: 0755
       contents:

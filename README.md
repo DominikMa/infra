@@ -15,18 +15,33 @@ ausschliesslich lokal.
 Butane, `ignition-validate` und `coreos-installer` laufen in gepinnten
 Containern; `make check` verwendet auch BlueBuild auf diese Weise. Die lokalen
 Image-Targets rufen dagegen die installierte BlueBuild-CLI mit Podman als
-Build-Treiber auf. Vor einem lokalen Build muessen zwei nicht versionierte
+Build-Treiber auf. Vor einem lokalen Installer-Build muessen vier nicht versionierte
 Dateien angelegt werden:
 
 ```text
 local/luebeck/authorized_keys
 local/luebeck/image-ref
+local/luebeck/host_key/ssh_host_ed25519_key
+local/luebeck/host_key/ssh_host_ed25519_key.pub
 ```
 
 `authorized_keys` enthaelt einen oder mehrere gueltige OpenSSH-Public-Keys,
 jeweils einen pro Zeile. Leerzeilen und Kommentarzeilen sind erlaubt.
 `image-ref` enthaelt genau eine OCI-Referenz ohne Transport-Praefix, etwa
 `ghcr.io/acme/luebeck:stable`.
+
+Das Ed25519-Host-Key-Paar gibt `luebeck` ueber Neuinstallationen hinweg dieselbe
+SSH-Identitaet. Um den Schluessel des laufenden Systems zu uebernehmen, werden
+die beiden Dateien sicher nach `local/luebeck/host_key/` kopiert und der private
+Schluessel auf Modus `0600` gesetzt. Alternativ erzeugt
+`make host-key MACHINE=luebeck` einmalig ein neues Paar; vorhandene Dateien
+werden dabei nie ueberschrieben. Der Fingerprint laesst sich mit
+`ssh-keygen -lf local/luebeck/host_key/ssh_host_ed25519_key.pub` pruefen. Das Paar muss
+zusammen mit den sonstigen lokalen Installationsdaten sicher gesichert werden.
+Der private Key wird nur in die lokal erzeugte Ignition-Konfiguration und das
+Installer-ISO eingebettet, nicht in Git oder das veroeffentlichte OCI-Image.
+Die Dateien unter `build/luebeck/` werden deshalb lokal mit restriktiven Rechten
+erzeugt; `.ign` und Installer-ISO muessen wie private Schluessel behandelt werden.
 
 ## Lokaler Build
 

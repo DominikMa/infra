@@ -25,7 +25,8 @@ done
 expect_machine_failure ignition does-not-exist
 expect_machine_failure image does-not-exist
 
-for ignored in local/luebeck/authorized_keys build/luebeck/test.ign test.iso cosign.key; do
+for ignored in local/luebeck/authorized_keys local/luebeck/host_key/ssh_host_ed25519_key \
+    local/luebeck/host_key/ssh_host_ed25519_key.pub build/luebeck/test.ign test.iso cosign.key; do
     if ! git -C "${repo_root}" check-ignore -q "${ignored}"; then
         echo "Fehler: ${ignored} wird nicht von .gitignore geschuetzt." >&2
         failures=$((failures + 1))
@@ -45,6 +46,14 @@ for image_script in build-image.sh publish-image.sh; do
     }
     bash -n "${repo_root}/scripts/${image_script}"
 done
+grep -q '^umask 077$' "${repo_root}/scripts/build-ignition.sh"
+[[ $(grep -c 'chmod 0600' "${repo_root}/scripts/build-ignition.sh") -ge 2 ]]
+host_key_script="${repo_root}/scripts/generate-host-key.sh"
+[[ -x "${host_key_script}" ]] || {
+    echo "Fehler: scripts/generate-host-key.sh fehlt oder ist nicht ausfuehrbar." >&2
+    exit 1
+}
+bash -n "${host_key_script}"
 smoke_script="${repo_root}/scripts/qemu-smoke.sh"
 bash -n "${smoke_script}"
 grep -q -- '-no-reboot' "${smoke_script}"
@@ -57,10 +66,15 @@ grep -q 'COSIGN_PRIVATE_KEY' "${repo_root}/scripts/publish-image.sh"
 check_dir=$(mktemp -d)
 trap 'rm -rf -- "${check_dir}"' EXIT
 mkdir -p "${check_dir}/build/luebeck" "${check_dir}/local/luebeck" \
-    "${check_dir}/ignition/luebeck"
+    "${check_dir}/local/luebeck/host_key" "${check_dir}/ignition/luebeck"
 cp "${repo_root}/tests/fixtures/authorized_keys" "${check_dir}/local/luebeck/authorized_keys"
 validate_authorized_keys "${check_dir}/local/luebeck/authorized_keys"
 [[ $(grep -c '^ssh-' "${check_dir}/local/luebeck/authorized_keys") -eq 2 ]]
+ssh-keygen -q -t ed25519 -N '' -C fixture@luebeck \
+    -f "${check_dir}/local/luebeck/host_key/ssh_host_ed25519_key"
+validate_ssh_host_key_pair \
+    "${check_dir}/local/luebeck/host_key/ssh_host_ed25519_key" \
+    "${check_dir}/local/luebeck/host_key/ssh_host_ed25519_key.pub"
 cp "${repo_root}/tests/fixtures/image-ref" "${check_dir}/local/luebeck/image-ref"
 cp "${repo_root}/ignition/luebeck/subids" "${check_dir}/ignition/luebeck/subids"
 mkdir -p "${check_dir}/files/luebeck/etc"
@@ -87,6 +101,10 @@ grep -q 'ostree-image-signed:docker://' "${repo_root}/ignition/common.bu"
 [[ $(grep -c 'rpm-ostree rebase --bypass-driver' "${repo_root}/ignition/common.bu") -eq 2 ]]
 grep -q 'Restart=on-failure' "${repo_root}/ignition/common.bu"
 grep -q 'RestartSec=30s' "${repo_root}/ignition/common.bu"
+grep -q '"path": "/etc/ssh/ssh_host_ed25519_key"' "${check_dir}/build/luebeck/common.ign"
+grep -q '"path": "/etc/ssh/ssh_host_ed25519_key.pub"' "${check_dir}/build/luebeck/common.ign"
+grep -A6 '"path": "/etc/ssh/ssh_host_ed25519_key"' \
+    "${check_dir}/build/luebeck/common.ign" | grep -q '"mode": 384'
 grep -q '"format": "btrfs"' "${check_dir}/build/luebeck/common.ign"
 grep -q '"number": 4' "${check_dir}/build/luebeck/common.ign"
 grep -q '"sizeMiB": 131072' "${check_dir}/build/luebeck/common.ign"
@@ -223,6 +241,8 @@ grep -A2 'path: /etc/NetworkManager/conf.d/20-luebeck-bridge.conf' \
 
 ssh_config="${repo_root}/files/luebeck/etc/ssh/sshd_config.d/60-service-users.conf"
 ssh_listeners="${repo_root}/files/luebeck/etc/ssh/sshd_config.d/40-listen-addresses.conf"
+ssh_host_key="${repo_root}/files/luebeck/etc/ssh/sshd_config.d/20-host-key.conf"
+grep -Fxq 'HostKey /etc/ssh/ssh_host_ed25519_key' "${ssh_host_key}"
 grep -q '^ListenAddress 0\.0\.0\.0:22$' "${ssh_listeners}"
 grep -q '^ListenAddress \[2a02:8108:142b:ed00:5516:4aac:9e0a:3c00\]:22$' \
     "${ssh_listeners}"
