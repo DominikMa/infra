@@ -1,9 +1,13 @@
 {
 	email service@mairhoefer.xyz
+	default_bind 0.0.0.0 [2a02:8108:142b:ed00:5516:4aac:9e0a:3c00]
+}
+
+http:// {
 }
 
 (internal_clients) {
-	@internal_clients remote_ip 100.64.0.0/24 192.168.7.0/24
+	@internal_clients remote_ip 100.64.0.0/24 192.168.7.0/24 2a02:8108:142b:ed00::/64 fd7a:115c:a1e0::/48
 }
 
 import services/*.caddyfile

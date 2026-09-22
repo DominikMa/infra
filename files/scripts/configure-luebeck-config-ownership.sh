@@ -21,3 +21,11 @@ for owner_and_path in \
     fi
     chown -R --no-dereference "${owner}:${group}" "${path}"
 done
+
+network_profile="${config_root}/etc/NetworkManager/system-connections/luebeck-lan.nmconnection"
+if [[ ! -f "${network_profile}" ]]; then
+    echo "NetworkManager profile is missing: ${network_profile}" >&2
+    exit 1
+fi
+chown root:root "${network_profile}"
+chmod 0600 "${network_profile}"

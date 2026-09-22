@@ -11,6 +11,11 @@ storage:
     - path: /etc/ssh/authorized_keys
       mode: 0700
   files:
+    - path: /etc/NetworkManager/system-connections/luebeck-lan.nmconnection
+      mode: 0600
+      overwrite: true
+      contents:
+        local: files/luebeck/etc/NetworkManager/system-connections/luebeck-lan.nmconnection
     - path: /etc/subuid
       mode: 0644
       overwrite: true

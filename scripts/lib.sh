@@ -14,6 +14,24 @@ podman_run() {
     podman run --rm --security-opt label=disable --userns=keep-id "$@"
 }
 
+validate_authorized_keys() {
+    local key_file=$1 key_count=0 line
+    local key_pattern='^(ssh-(ed25519|rsa)|ecdsa-sha2-nistp(256|384|521)|sk-(ssh-ed25519|ecdsa-sha2-nistp256)@openssh.com) [A-Za-z0-9+/]+={0,3}([[:space:]].*)?$'
+
+    while IFS= read -r line || [[ -n "${line}" ]]; do
+        if [[ "${line}" =~ ^[[:space:]]*$ || "${line}" =~ ^[[:space:]]*# ]]; then
+            continue
+        fi
+        if [[ ! "${line}" =~ ${key_pattern} ]] ||
+           ! ssh-keygen -l -f - <<<"${line}" >/dev/null 2>&1; then
+            return 1
+        fi
+        key_count=$((key_count + 1))
+    done < "${key_file}"
+
+    [[ ${key_count} -ge 1 ]]
+}
+
 validate_local_inputs() {
     local machine=$1 key_file image_file image_ref
     key_file="${repo_root}/local/${machine}/authorized_keys"
@@ -22,10 +40,8 @@ validate_local_inputs() {
         echo "Fehler: ${key_file} fehlt oder ist leer." >&2
         return 2
     fi
-    if [[ $(awk 'NF && $1 !~ /^#/ { count++ } END { print count + 0 }' "${key_file}") -ne 1 ]] ||
-       ! grep -Eq '^(ssh-(ed25519|rsa)|ecdsa-sha2-nistp(256|384|521)|sk-(ssh-ed25519|ecdsa-sha2-nistp256)@openssh.com) [A-Za-z0-9+/]+={0,3}([[:space:]].*)?$' "${key_file}" ||
-       ! ssh-keygen -l -f "${key_file}" >/dev/null 2>&1; then
-        echo "Fehler: ${key_file} muss genau einen gueltigen OpenSSH-Schluessel enthalten." >&2
+    if ! validate_authorized_keys "${key_file}"; then
+        echo "Fehler: ${key_file} muss mindestens einen gueltigen OpenSSH-Schluessel enthalten." >&2
         return 2
     fi
     if [[ ! -s "${image_file}" ]]; then

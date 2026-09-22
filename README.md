@@ -23,7 +23,8 @@ local/luebeck/authorized_keys
 local/luebeck/image-ref
 ```
 
-`authorized_keys` enthaelt genau einen gueltigen OpenSSH-Public-Key.
+`authorized_keys` enthaelt einen oder mehrere gueltige OpenSSH-Public-Keys,
+jeweils einen pro Zeile. Leerzeilen und Kommentarzeilen sind erlaubt.
 `image-ref` enthaelt genau eine OCI-Referenz ohne Transport-Praefix, etwa
 `ghcr.io/acme/luebeck:stable`.
 
@@ -165,6 +166,24 @@ ssh adguard@luebeck \
 Query-Logs, Sessions, Filterkopien und Statistiken werden nicht ins Image
 aufgenommen.
 
+### Feste IPv6-Adressen
+
+Das Image installiert das persistente NetworkManager-Profil `luebeck-lan` fuer
+`enp3s0`, gebunden an dessen MAC-Adresse. IPv4 verwendet statisch
+`192.168.7.10/24` mit Gateway und DNS-Resolver `192.168.7.1`. Das Profil
+hinterlegt außerdem die bisherige IPv6-Adresse
+`2a02:8108:142b:ed00:5516:4aac:9e0a:3c00/64` sowie die zusaetzliche Adresse
+`2a02:8108:142b:ed00:3053:ee4e:e36d:61d8/64` statisch. Der Router
+`fe80::cece:1eff:fea9:5445` ist als IPv6-Gateway eingetragen und temporaere
+Privacy-Adressen sind deaktiviert. Ein nachgelagerter Boot-Dienst ist nicht
+erforderlich. Dieselbe Keyfile-Quelle wird sowohl ins Image als auch in die
+Ignition-Konfiguration aufgenommen, damit die festen Adressen bereits beim
+ersten Boot und weiterhin nach Image-Updates gelten.
+
+Der Host-SSH-Server lauscht auf Port 22 an allen IPv4-Adressen und
+ausschliesslich an der primaeren globalen IPv6-Adresse. Die zweite IPv6-Adresse
+bleibt dadurch fuer einen spaeteren Git-SSH-Dienst frei.
+
 ### Rootless Caddy als Reverse Proxy
 
 Caddys Zertifikate, Schluessel und Laufzeitkonfiguration liegen unter
@@ -175,9 +194,10 @@ Caddys Zertifikate, Schluessel und Laufzeitkonfiguration liegen unter
 
 Der Caddy-Container verwendet Host-Networking und kann dadurch Headscale unter
 `127.0.0.1:10000` erreichen, ohne dessen Port extern zu oeffnen. Caddy bindet
-HTTP direkt an Port 80 sowie HTTPS und HTTP/3 direkt an Port 443.
+HTTP direkt an Port 80 sowie HTTPS und HTTP/3 direkt an Port 443, jeweils an
+allen IPv4-Adressen und ausschliesslich an der primaeren globalen IPv6-Adresse.
 
-`net.ipv4.ip_unprivileged_port_start = 53` erlaubt den rootless Containern die
+`net.ipv4.ip_unprivileged_port_start = 22` erlaubt den rootless Containern die
 direkte Belegung dieser Ports. firewalld bleibt aktiviert und gibt DNS, HTTP,
 HTTPS sowie HTTP/3 fuer IPv4 und IPv6 frei; Portweiterleitungen sind nicht
 mehr erforderlich.
@@ -186,8 +206,9 @@ Das produktive Haupt-Caddyfile enthaelt die globalen Optionen und importiert
 `services/*.caddyfile`. Die Synology-Proxies aus der vorherigen Installation
 liegen separat in `services/synology.caddyfile`; weitere Dienste koennen dadurch
 ohne wachsende Hauptdatei ergaenzt werden. Das wiederverwendbare Snippet
-`internal_clients` definiert zentral die erlaubten Tailscale- und LAN-Netze und
-wird innerhalb geschuetzter Site-Bloecke importiert. Beide Dateien werden direkt
+`internal_clients` definiert zentral die erlaubten IPv4- und IPv6-Netze von
+Tailscale und dem LAN und wird innerhalb geschuetzter Site-Bloecke importiert.
+Beide Dateien werden direkt
 mit dem Image ausgerollt. Fuer einen bewusst lokalen Override koennen sie auf dem
 Rechner angepasst werden:
 

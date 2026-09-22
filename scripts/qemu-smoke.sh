@@ -130,7 +130,7 @@ timeout 1800 bash -c '
              sudo firewall-cmd --zone=public --query-service=http &&
              sudo firewall-cmd --zone=public --query-service=https &&
              sudo firewall-cmd --zone=public --query-port=443/udp &&
-             test "\$(sysctl -n net.ipv4.ip_unprivileged_port_start)" = 53 &&
+             test "\$(sysctl -n net.ipv4.ip_unprivileged_port_start)" = 22 &&
              test -e /var/lib/image-rebase/signed-requested &&
              rpm-ostree status --json | jq -e --arg ref \"$2\" \
                '\''any(.deployments[]; .booted and .origin == (\"ostree-image-signed:docker://\" + \$ref))'\''" \

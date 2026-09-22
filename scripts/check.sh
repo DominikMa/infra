@@ -59,8 +59,13 @@ trap 'rm -rf -- "${check_dir}"' EXIT
 mkdir -p "${check_dir}/build/luebeck" "${check_dir}/local/luebeck" \
     "${check_dir}/ignition/luebeck"
 cp "${repo_root}/tests/fixtures/authorized_keys" "${check_dir}/local/luebeck/authorized_keys"
+validate_authorized_keys "${check_dir}/local/luebeck/authorized_keys"
+[[ $(grep -c '^ssh-' "${check_dir}/local/luebeck/authorized_keys") -eq 2 ]]
 cp "${repo_root}/tests/fixtures/image-ref" "${check_dir}/local/luebeck/image-ref"
 cp "${repo_root}/ignition/luebeck/subids" "${check_dir}/ignition/luebeck/subids"
+mkdir -p "${check_dir}/files/luebeck/etc/NetworkManager/system-connections"
+cp "${repo_root}/files/luebeck/etc/NetworkManager/system-connections/luebeck-lan.nmconnection" \
+    "${check_dir}/files/luebeck/etc/NetworkManager/system-connections/luebeck-lan.nmconnection"
 mkdir -p "${check_dir}/repo"
 cp -R "${repo_root}/recipes" "${repo_root}/files" "${check_dir}/repo/"
 
@@ -161,7 +166,31 @@ for uid in 1010 1011 1012; do
 done
 grep -q 'configure-luebeck-config-ownership.sh' "${repo_root}/recipes/luebeck.yml"
 
+network_profile="${repo_root}/files/luebeck/etc/NetworkManager/system-connections/luebeck-lan.nmconnection"
+grep -q '^interface-name=enp3s0$' "${network_profile}"
+grep -q '^mac-address=A8:B8:E0:05:92:E6$' "${network_profile}"
+grep -q '^address1=192\.168\.7\.10/24$' "${network_profile}"
+grep -q '^dns=192\.168\.7\.1;$' "${network_profile}"
+grep -q '^gateway=192\.168\.7\.1$' "${network_profile}"
+grep -q '^address1=2a02:8108:142b:ed00:5516:4aac:9e0a:3c00/64$' "${network_profile}"
+grep -q '^address2=2a02:8108:142b:ed00:3053:ee4e:e36d:61d8/64$' "${network_profile}"
+grep -q '^gateway=fe80::cece:1eff:fea9:5445$' "${network_profile}"
+grep -q '^ip6-privacy=0$' "${network_profile}"
+grep -q '^method=manual$' "${network_profile}"
+grep -q 'NetworkManager/system-connections/luebeck-lan.nmconnection' \
+    "${config_owner_script}"
+grep -q 'chmod 0600 "${network_profile}"' "${config_owner_script}"
+grep -q 'local: files/luebeck/etc/NetworkManager/system-connections/luebeck-lan.nmconnection' \
+    "${repo_root}/ignition/luebeck.bu"
+grep -A2 'path: /etc/NetworkManager/system-connections/luebeck-lan.nmconnection' \
+    "${repo_root}/ignition/luebeck.bu" | grep -q 'mode: 0600'
+
 ssh_config="${repo_root}/files/luebeck/etc/ssh/sshd_config.d/60-service-users.conf"
+ssh_listeners="${repo_root}/files/luebeck/etc/ssh/sshd_config.d/40-listen-addresses.conf"
+grep -q '^ListenAddress 0\.0\.0\.0:22$' "${ssh_listeners}"
+grep -q '^ListenAddress \[2a02:8108:142b:ed00:5516:4aac:9e0a:3c00\]:22$' \
+    "${ssh_listeners}"
+[[ $(grep -c '^ListenAddress ' "${ssh_listeners}") -eq 2 ]]
 grep -q '^Match User headscale,adguard$' "${ssh_config}"
 grep -q 'AuthenticationMethods publickey' "${ssh_config}"
 grep -q 'AuthorizedKeysFile /etc/ssh/authorized_keys/%u' "${ssh_config}"
@@ -199,10 +228,19 @@ grep -q '^Image=docker.io/adguard/adguardhome:v0\.107\.79$' "${adguard_quadlet}"
 grep -q '^Volume=/etc/container-services/adguard:/opt/adguardhome/conf:Z$' "${adguard_quadlet}"
 grep -q '^Volume=/var/lib/service-data/adguard/data:/opt/adguardhome/work:Z$' "${adguard_quadlet}"
 grep -q '^Network=adguard.network$' "${adguard_quadlet}"
-grep -q '^PublishPort=0\.0\.0\.0:53:53/tcp$' "${adguard_quadlet}"
-grep -q '^PublishPort=0\.0\.0\.0:53:53/udp$' "${adguard_quadlet}"
-grep -q '^PublishPort=\[::\]:53:53/tcp$' "${adguard_quadlet}"
-grep -q '^PublishPort=\[::\]:53:53/udp$' "${adguard_quadlet}"
+for dns_mapping in \
+    '0.0.0.0:53:53/tcp' \
+    '0.0.0.0:53:53/udp' \
+    '[::1]:53:53/tcp' \
+    '[::1]:53:53/udp' \
+    '[2a02:8108:142b:ed00:5516:4aac:9e0a:3c00]:53:53/tcp' \
+    '[2a02:8108:142b:ed00:5516:4aac:9e0a:3c00]:53:53/udp'; do
+    grep -Fqx "PublishPort=${dns_mapping}" "${adguard_quadlet}"
+done
+if grep -q '^PublishPort=\[::\]:53:' "${adguard_quadlet}"; then
+    echo "Fehler: AdGuard DNS darf nicht auf der IPv6-Wildcard lauschen." >&2
+    exit 1
+fi
 grep -q '^PublishPort=127\.0\.0\.1:12001:80/tcp$' "${adguard_quadlet}"
 grep -q '^IPv6=true$' "${repo_root}/files/luebeck/etc/containers/systemd/users/1012/adguard.network"
 grep -q '^ConditionPathExists=/etc/container-services/adguard/AdGuardHome.yaml$' "${adguard_quadlet}"
@@ -242,8 +280,12 @@ fi
 caddyfile="${repo_root}/files/luebeck/etc/container-services/caddy/Caddyfile"
 synology_caddyfile="${repo_root}/files/luebeck/etc/container-services/caddy/services/synology.caddyfile"
 grep -q '^import services/\*\.caddyfile$' "${caddyfile}"
+grep -Fqx $'\tdefault_bind 0.0.0.0 [2a02:8108:142b:ed00:5516:4aac:9e0a:3c00]' \
+    "${caddyfile}"
+grep -q '^http:// {$' "${caddyfile}"
 grep -q '^(internal_clients) {$' "${caddyfile}"
-grep -q '@internal_clients remote_ip 100\.64\.0\.0/24 192\.168\.7\.0/24' "${caddyfile}"
+grep -q '@internal_clients remote_ip 100\.64\.0\.0/24 192\.168\.7\.0/24 2a02:8108:142b:ed00::/64 fd7a:115c:a1e0::/48' \
+    "${caddyfile}"
 grep -q '^calender\.synology\.mairhoefer\.xyz {' "${synology_caddyfile}"
 grep -q '^contacts\.synology\.mairhoefer\.xyz {' "${synology_caddyfile}"
 grep -q '^drive\.synology\.mairhoefer\.xyz {' "${synology_caddyfile}"
@@ -286,7 +328,7 @@ podman_run --tmpfs /tmp/adguard-work \
     "${ADGUARD_IMAGE}" --check-config \
     -c /opt/adguardhome/conf/AdGuardHome.yaml -w /tmp/adguard-work >/dev/null
 sysctl_config="${repo_root}/files/luebeck/etc/sysctl.d/90-unprivileged-ports.conf"
-grep -q '^net\.ipv4\.ip_unprivileged_port_start = 53$' "${sysctl_config}"
+grep -q '^net\.ipv4\.ip_unprivileged_port_start = 22$' "${sysctl_config}"
 firewalld_zone="${repo_root}/files/luebeck/etc/firewalld/zones/public.xml"
 grep -q '<service name="ssh"/>' "${firewalld_zone}"
 grep -q '<service name="dns"/>' "${firewalld_zone}"
