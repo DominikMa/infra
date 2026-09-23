@@ -151,6 +151,9 @@ done
 grep -q '/etc/ssh/authorized_keys/headscale' "${repo_root}/ignition/luebeck.bu"
 grep -q '/etc/ssh/authorized_keys/adguard' "${repo_root}/ignition/luebeck.bu"
 grep -q '/etc/ssh/authorized_keys/vaultwarden' "${repo_root}/ignition/luebeck.bu"
+# sshd liest AuthorizedKeysFile mit den Rechten des Zielbenutzers.
+grep -A1 '^    - path: /etc/ssh/authorized_keys$' "${repo_root}/ignition/luebeck.bu" | \
+    grep -q '^      mode: 0755$'
 if grep -q '/etc/ssh/authorized_keys/caddy' "${repo_root}/ignition/luebeck.bu"; then
     echo "Fehler: caddy darf keinen SSH-Key erhalten." >&2
     exit 1

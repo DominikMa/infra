@@ -9,7 +9,7 @@ ignition:
 storage:
   directories:
     - path: /etc/ssh/authorized_keys
-      mode: 0700
+      mode: 0755
   files:
     - path: /etc/NetworkManager/system-connections/luebeck-lan.nmconnection
       mode: 0600
