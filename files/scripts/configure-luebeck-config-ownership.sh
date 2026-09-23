@@ -11,7 +11,8 @@ for owner_and_path in \
     "1010:1010:${config_root}/etc/container-services/headscale" \
     "1011:1011:${config_root}/etc/container-services/caddy" \
     "1012:1012:${config_root}/etc/container-services/adguard" \
-    "1013:1013:${config_root}/etc/container-services/vaultwarden"; do
+    "1013:1013:${config_root}/etc/container-services/vaultwarden" \
+    "1014:1014:${config_root}/etc/container-services/smarthome"; do
     owner=${owner_and_path%%:*}
     remainder=${owner_and_path#*:}
     group=${remainder%%:*}

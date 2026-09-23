@@ -1,0 +1,23 @@
+homeassistant.home.mairhoefer.xyz {
+	import internal_clients
+
+	handle @internal_clients {
+		reverse_proxy 127.0.0.1:14001
+	}
+
+	handle {
+		abort
+	}
+}
+
+zigbee2mqtt.home.mairhoefer.xyz {
+	import internal_clients
+
+	handle @internal_clients {
+		reverse_proxy 127.0.0.1:14002
+	}
+
+	handle {
+		abort
+	}
+}

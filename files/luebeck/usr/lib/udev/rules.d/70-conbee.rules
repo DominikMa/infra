@@ -1,0 +1,2 @@
+# ConBee III fuer den rootless Zigbee2MQTT-Container des Benutzers smarthome.
+SUBSYSTEM=="tty", ENV{ID_SERIAL}=="dresden_elektronik_ConBee_III_DE03110622", OWNER="smarthome", MODE="0660"

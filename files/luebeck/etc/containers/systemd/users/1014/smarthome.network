@@ -1,0 +1,6 @@
+[Unit]
+Description=Smarthome container network
+
+[Network]
+NetworkName=smarthome
+Subnet=10.89.0.0/24

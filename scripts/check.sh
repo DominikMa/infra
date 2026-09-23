@@ -150,7 +150,9 @@ for subid_file in /etc/subuid /etc/subgid; do
 done
 grep -q '/etc/ssh/authorized_keys/headscale' "${repo_root}/ignition/luebeck.bu"
 grep -q '/etc/ssh/authorized_keys/adguard' "${repo_root}/ignition/luebeck.bu"
-grep -q '/etc/ssh/authorized_keys/vaultwarden' "${repo_root}/ignition/luebeck.bu"
+for service_user in headscale adguard vaultwarden smarthome mealie onedev; do
+    grep -q "/etc/ssh/authorized_keys/${service_user}" "${repo_root}/ignition/luebeck.bu"
+done
 # sshd liest AuthorizedKeysFile mit den Rechten des Zielbenutzers.
 grep -A1 '^    - path: /etc/ssh/authorized_keys$' "${repo_root}/ignition/luebeck.bu" | \
     grep -q '^      mode: 0755$'
@@ -164,16 +166,26 @@ grep -q '^u headscale 1010 .* /var/home/headscale /bin/fish$' "${sysusers}"
 grep -q '^u caddy 1011 .* /var/home/caddy /bin/fish$' "${sysusers}"
 grep -q '^u adguard 1012 .* /var/home/adguard /bin/fish$' "${sysusers}"
 grep -q '^u vaultwarden 1013 .* /var/home/vaultwarden /bin/fish$' "${sysusers}"
+grep -q '^u smarthome 1014 .* /var/home/smarthome /bin/fish$' "${sysusers}"
+grep -q '^u mealie 1015 .* /var/home/mealie /bin/fish$' "${sysusers}"
+grep -q '^u onedev 1016 .* /var/home/onedev /bin/fish$' "${sysusers}"
 tmpfiles="${repo_root}/files/luebeck/usr/lib/tmpfiles.d/service-data.conf"
 grep -q '^d /var/home/headscale 0750 1010 1010 -$' "${tmpfiles}"
 grep -q '^d /var/home/caddy 0750 1011 1011 -$' "${tmpfiles}"
 grep -q '^d /var/home/adguard 0750 1012 1012 -$' "${tmpfiles}"
-grep -q '^d /var/home/vaultwarden 0750 1013 1013 -$' "${tmpfiles}"
 grep -q '^v /var/lib/service-data/headscale 0750 1010 1010 -$' "${tmpfiles}"
 grep -q '^v /var/lib/service-data/caddy 0750 1011 1011 -$' "${tmpfiles}"
 grep -q '^v /var/lib/service-data/adguard 0750 1012 1012 -$' "${tmpfiles}"
 grep -q '^d /var/lib/service-data/adguard/data 0750 1012 1012 -$' "${tmpfiles}"
-grep -q '^v /var/lib/service-data/vaultwarden 0750 1013 1013 -$' "${tmpfiles}"
+for service_uid in vaultwarden:1013 smarthome:1014 mealie:1015 onedev:1016; do
+    service=${service_uid%%:*}
+    uid=${service_uid#*:}
+    grep -q "^d /var/home/${service} 0750 ${uid} ${uid} -$" "${tmpfiles}"
+    grep -q "^v /var/lib/service-data/${service} 0750 ${uid} ${uid} -$" "${tmpfiles}"
+    grep -q "^f /var/lib/systemd/linger/${service} " "${tmpfiles}"
+done
+grep -q '^d /var/lib/service-data/smarthome/homeassistant 0750 1014 1014 -$' "${tmpfiles}"
+grep -q '^d /var/lib/service-data/smarthome/zigbee2mqtt 0750 1014 1014 -$' "${tmpfiles}"
 if grep -q '/etc/container-services' "${tmpfiles}"; then
     echo "Fehler: Eigentum der Image-Konfiguration darf nicht durch Tmpfiles korrigiert werden." >&2
     exit 1
@@ -181,7 +193,6 @@ fi
 grep -q '^f /var/lib/systemd/linger/headscale ' "${tmpfiles}"
 grep -q '^f /var/lib/systemd/linger/caddy ' "${tmpfiles}"
 grep -q '^f /var/lib/systemd/linger/adguard ' "${tmpfiles}"
-grep -q '^f /var/lib/systemd/linger/vaultwarden ' "${tmpfiles}"
 
 subid_ignition="${repo_root}/ignition/luebeck/subids"
 for expected_subid in \
@@ -189,10 +200,13 @@ for expected_subid in \
     headscale:200000:65536 \
     caddy:300000:65536 \
     adguard:400000:65536 \
-    vaultwarden:500000:65536; do
+    vaultwarden:500000:65536 \
+    smarthome:600000:65536 \
+    mealie:700000:65536 \
+    onedev:800000:65536; do
     [[ $(grep -Fxc "${expected_subid}" "${subid_ignition}") -eq 1 ]]
 done
-[[ $(wc -l < "${subid_ignition}") -eq 5 ]]
+[[ $(wc -l < "${subid_ignition}") -eq 8 ]]
 if rg -n 'configure-luebeck-subids|SUBID_ROOT' \
     "${repo_root}/files" "${repo_root}/recipes" "${repo_root}/ignition"; then
     echo "Fehler: die entfernte Build-Zeit-SubID-Provisionierung wird noch referenziert." >&2
@@ -204,7 +218,7 @@ config_owner_script="${repo_root}/files/scripts/configure-luebeck-config-ownersh
     exit 1
 }
 bash -n "${config_owner_script}"
-for uid in 1010 1011 1012 1013; do
+for uid in 1010 1011 1012 1013 1014; do
     grep -q "\"${uid}:${uid}:" "${config_owner_script}"
 done
 grep -q 'configure-luebeck-config-ownership.sh' "${repo_root}/recipes/luebeck.yml"
@@ -256,7 +270,7 @@ grep -q '^ListenAddress 0\.0\.0\.0:22$' "${ssh_listeners}"
 grep -q '^ListenAddress \[2a02:8108:142b:ed00:5516:4aac:9e0a:3c00\]:22$' \
     "${ssh_listeners}"
 [[ $(grep -c '^ListenAddress ' "${ssh_listeners}") -eq 2 ]]
-grep -q '^Match User headscale,adguard,vaultwarden$' "${ssh_config}"
+grep -q '^Match User headscale,adguard,vaultwarden,smarthome,mealie,onedev$' "${ssh_config}"
 grep -q 'AuthenticationMethods publickey' "${ssh_config}"
 grep -q 'AuthorizedKeysFile /etc/ssh/authorized_keys/%u' "${ssh_config}"
 grep -q 'AllowTcpForwarding no' "${ssh_config}"
@@ -265,17 +279,26 @@ headscale_quadlet="${repo_root}/files/luebeck/etc/containers/systemd/users/1010/
 caddy_quadlet="${repo_root}/files/luebeck/etc/containers/systemd/users/1011/caddy.container"
 adguard_quadlet="${repo_root}/files/luebeck/etc/containers/systemd/users/1012/adguard.container"
 vaultwarden_quadlet="${repo_root}/files/luebeck/etc/containers/systemd/users/1013/vaultwarden.container"
-for quadlet in "${headscale_quadlet}" "${caddy_quadlet}" "${adguard_quadlet}" "${vaultwarden_quadlet}"; do
+homeassistant_quadlet="${repo_root}/files/luebeck/etc/containers/systemd/users/1014/homeassistant.container"
+zigbee2mqtt_quadlet="${repo_root}/files/luebeck/etc/containers/systemd/users/1014/zigbee2mqtt.container"
+mosquitto_quadlet="${repo_root}/files/luebeck/etc/containers/systemd/users/1014/mosquitto.container"
+mealie_quadlet="${repo_root}/files/luebeck/etc/containers/systemd/users/1015/mealie.container"
+onedev_quadlet="${repo_root}/files/luebeck/etc/containers/systemd/users/1016/onedev.container"
+mapfile -t all_quadlets < <(find "${repo_root}/files/luebeck/etc/containers/systemd/users" \
+    -type f -name '*.container' | sort)
+[[ ${#all_quadlets[@]} -eq 9 ]]
+for quadlet in "${all_quadlets[@]}"; do
     grep -q '^Restart=on-failure$' "${quadlet}"
     grep -q '^RestartSec=30s$' "${quadlet}"
     grep -q '^StartLimitIntervalSec=10min$' "${quadlet}"
     grep -q '^StartLimitBurst=5$' "${quadlet}"
-    if grep -q '^SecurityLabelDisable=' "${quadlet}"; then
+    # Ausnahme: OneDev steuert Build-Container ueber den Podman-Socket.
+    if [[ "${quadlet}" != "${onedev_quadlet}" ]] && grep -q '^SecurityLabelDisable=' "${quadlet}"; then
         echo "Fehler: SELinux-Label-Trennung darf nicht deaktiviert werden." >&2
         exit 1
     fi
 done
-for uid in 1010 1011 1012 1013; do
+for uid in 1010 1011 1012 1013 1014 1015 1016; do
     user_dropin="${repo_root}/files/luebeck/usr/lib/systemd/system/user@${uid}.service.d/10-service-data.conf"
     grep -q '^Requires=service-data.service$' "${user_dropin}"
     grep -q '^Wants=network-online.target$' "${user_dropin}"
@@ -288,6 +311,7 @@ grep -q '^PublishPort=127.0.0.1:10001:9090/tcp$' \
 grep -q '^Volume=/var/lib/service-data/headscale:/var/lib/headscale:Z$' "${headscale_quadlet}"
 grep -q '^Volume=/etc/container-services/headscale:/etc/headscale:ro,Z$' "${headscale_quadlet}"
 grep -q '^ConditionPathExists=/etc/container-services/headscale/config.yaml$' "${headscale_quadlet}"
+grep -q '^Image=ghcr.io/juanfont/headscale:latest$' "${headscale_quadlet}"
 grep -q '^Volume=/var/lib/service-data/caddy/data:/data:Z$' "${caddy_quadlet}"
 grep -q '^Volume=/var/lib/service-data/caddy/config:/config:Z$' "${caddy_quadlet}"
 grep -q '^Volume=/etc/container-services/caddy:/etc/caddy:ro,Z$' "${caddy_quadlet}"
@@ -309,13 +333,48 @@ grep -q '^PublishPort=127\.0\.0\.1:12001:80/tcp$' "${adguard_quadlet}"
 grep -q '^IPv6=true$' "${repo_root}/files/luebeck/etc/containers/systemd/users/1012/adguard.network"
 grep -q '^ConditionPathExists=/etc/container-services/adguard/AdGuardHome.yaml$' "${adguard_quadlet}"
 grep -q '^Image=docker.io/vaultwarden/server:latest$' "${vaultwarden_quadlet}"
-grep -q '^AutoUpdate=registry$' "${vaultwarden_quadlet}"
-for quadlet in "${headscale_quadlet}" "${caddy_quadlet}" "${adguard_quadlet}"; do
-    if grep -q '^AutoUpdate=' "${quadlet}"; then
-        echo "Fehler: nur Vaultwarden darf automatisch aktualisiert werden." >&2
-        exit 1
+for quadlet in "${all_quadlets[@]}"; do
+    if [[ "${quadlet}" == "${caddy_quadlet}" || "${quadlet}" == "${adguard_quadlet}" ]]; then
+        if grep -q '^AutoUpdate=' "${quadlet}"; then
+            echo "Fehler: Caddy und AdGuard bleiben gepinnt." >&2
+            exit 1
+        fi
+    else
+        grep -q '^AutoUpdate=registry$' "${quadlet}"
     fi
 done
+grep -q '^Volume=/var/lib/service-data/smarthome/homeassistant:/config:Z$' "${homeassistant_quadlet}"
+grep -q '^PublishPort=127\.0\.0\.1:14001:8123/tcp$' "${homeassistant_quadlet}"
+grep -q '^Volume=/var/lib/service-data/smarthome/zigbee2mqtt:/app/data:Z$' "${zigbee2mqtt_quadlet}"
+grep -q '^PublishPort=127\.0\.0\.1:14002:8080/tcp$' "${zigbee2mqtt_quadlet}"
+grep -q '^AddDevice=/dev/serial/by-id/usb-dresden_elektronik_ConBee_III_DE03110622-if00-port0:/dev/ttyUSB0$' \
+    "${zigbee2mqtt_quadlet}"
+grep -q '^Volume=/etc/container-services/smarthome/mosquitto:/mosquitto/config:ro,Z$' "${mosquitto_quadlet}"
+grep -q '^ConditionPathExists=/etc/container-services/smarthome/mosquitto/mosquitto.passwd$' "${mosquitto_quadlet}"
+if grep -q '^PublishPort=' "${mosquitto_quadlet}"; then
+    echo "Fehler: MQTT bleibt im Container-Netz smarthome." >&2
+    exit 1
+fi
+for quadlet in "${homeassistant_quadlet}" "${zigbee2mqtt_quadlet}" "${mosquitto_quadlet}"; do
+    grep -q '^Network=smarthome.network$' "${quadlet}"
+done
+grep -q '^Subnet=10\.89\.0\.0/24$' "${repo_root}/files/luebeck/etc/containers/systemd/users/1014/smarthome.network"
+mosquitto_config="${repo_root}/files/luebeck/etc/container-services/smarthome/mosquitto"
+grep -q '^user root$' "${mosquitto_config}/mosquitto.conf"
+grep -q '^password_file /mosquitto/config/mosquitto.passwd$' "${mosquitto_config}/mosquitto.conf"
+[[ -f "${mosquitto_config}/mosquitto.passwd.example" ]]
+[[ ! -e "${mosquitto_config}/mosquitto.passwd" ]]
+grep -q 'OWNER="smarthome"' "${repo_root}/files/luebeck/usr/lib/udev/rules.d/70-conbee.rules"
+grep -q '^Volume=/var/lib/service-data/mealie:/app/data:Z$' "${mealie_quadlet}"
+grep -q '^PublishPort=127\.0\.0\.1:15001:9000/tcp$' "${mealie_quadlet}"
+grep -q '^Environment=PUID=0$' "${mealie_quadlet}"
+grep -q '^Environment=PGID=0$' "${mealie_quadlet}"
+grep -q '^Environment=ALLOW_SIGNUP=false$' "${mealie_quadlet}"
+grep -q '^Volume=/var/lib/service-data/onedev:/opt/onedev:Z$' "${onedev_quadlet}"
+grep -q '^Volume=%t/podman/podman.sock:/var/run/docker.sock$' "${onedev_quadlet}"
+grep -q '^Requires=podman.socket$' "${onedev_quadlet}"
+grep -q '^PublishPort=127\.0\.0\.1:16001:6610/tcp$' "${onedev_quadlet}"
+grep -q '^PublishPort=2222:6611/tcp$' "${onedev_quadlet}"
 [[ $(readlink "${repo_root}/files/luebeck/etc/systemd/user/timers.target.wants/podman-auto-update.timer") == \
     "/usr/lib/systemd/user/podman-auto-update.timer" ]]
 grep -q '^Volume=/var/lib/service-data/vaultwarden:/data:Z$' "${vaultwarden_quadlet}"
@@ -349,7 +408,7 @@ container_control="${repo_root}/files/system/usr/libexec/service-containers"
 bash -n "${container_control}"
 grep -q 'systemctl --user start containers.target' "${container_control}"
 grep -q 'systemctl --user stop containers.target' "${container_control}"
-for quadlet in "${headscale_quadlet}" "${caddy_quadlet}" "${adguard_quadlet}" "${vaultwarden_quadlet}"; do
+for quadlet in "${all_quadlets[@]}"; do
     grep -q '^PartOf=containers.target$' "${quadlet}"
     grep -q '^WantedBy=containers.target$' "${quadlet}"
 done
@@ -393,6 +452,22 @@ vaultwarden_caddyfile="${repo_root}/files/luebeck/etc/container-services/caddy/s
 grep -q '^warden\.mairhoefer\.xyz, warden\.home\.mairhoefer\.xyz {$' "${vaultwarden_caddyfile}"
 grep -q '^\s*reverse_proxy 127\.0\.0\.1:13001$' "${vaultwarden_caddyfile}"
 grep -q '^Environment=IP_HEADER=X-Forwarded-For$' "${vaultwarden_quadlet}"
+caddy_services="${repo_root}/files/luebeck/etc/container-services/caddy/services"
+grep -q '^headscale\.mairhoefer\.xyz, headscale\.home\.mairhoefer\.xyz {$' "${caddy_services}/headscale.caddyfile"
+grep -q '^\s*reverse_proxy 127\.0\.0\.1:10000$' "${caddy_services}/headscale.caddyfile"
+grep -q '^homeassistant\.home\.mairhoefer\.xyz {$' "${caddy_services}/smarthome.caddyfile"
+grep -q '^zigbee2mqtt\.home\.mairhoefer\.xyz {$' "${caddy_services}/smarthome.caddyfile"
+[[ $(grep -c '^\s*import internal_clients$' "${caddy_services}/smarthome.caddyfile") -eq 2 ]]
+grep -q '^\s*reverse_proxy 127\.0\.0\.1:14001$' "${caddy_services}/smarthome.caddyfile"
+grep -q '^\s*reverse_proxy 127\.0\.0\.1:14002$' "${caddy_services}/smarthome.caddyfile"
+grep -q '^mealie\.home\.mairhoefer\.xyz {$' "${caddy_services}/mealie.caddyfile"
+grep -q '^\s*reverse_proxy 127\.0\.0\.1:15001$' "${caddy_services}/mealie.caddyfile"
+grep -q '^git\.home\.mairhoefer\.xyz {$' "${caddy_services}/onedev.caddyfile"
+grep -q '^\s*reverse_proxy 127\.0\.0\.1:16001$' "${caddy_services}/onedev.caddyfile"
+if grep -q 'header_up' "${caddy_services}"/*.caddyfile; then
+    echo "Fehler: Caddy setzt die Proxy-Header bereits selbst." >&2
+    exit 1
+fi
 grep -q 'reverse_proxy synology\.internal\.mairhoefer\.xyz:' "${synology_caddyfile}"
 if grep -q 'header_up' "${synology_caddyfile}"; then
     echo "Fehler: redundante manuelle Proxy-Header verbleiben in der Synology-Konfiguration." >&2
@@ -402,8 +477,17 @@ if grep -Eq '^\s*(http_port|https_port)\s' "${caddyfile}"; then
     echo "Fehler: Caddy muss direkt die Standardports 80 und 443 verwenden." >&2
     exit 1
 fi
-[[ -f "${repo_root}/files/luebeck/etc/container-services/headscale/config.yaml.example" ]]
-[[ ! -e "${repo_root}/files/luebeck/etc/container-services/headscale/config.yaml" ]]
+headscale_config="${repo_root}/files/luebeck/etc/container-services/headscale/config.yaml"
+[[ ! -e "${headscale_config}.example" ]]
+grep -q '^server_url: http://headscale\.mairhoefer\.xyz:443$' "${headscale_config}"
+grep -q '^listen_addr: 0\.0\.0\.0:8080$' "${headscale_config}"
+grep -q '^  private_key_path: /var/lib/headscale/noise_private.key$' "${headscale_config}"
+grep -q '^    path: /var/lib/headscale/db.sqlite$' "${headscale_config}"
+grep -q '^  base_domain: vpn\.mairhoefer\.xyz$' "${headscale_config}"
+if grep -v '^\s*#' "${headscale_config}" | grep -q '/etc/headscale/'; then
+    echo "Fehler: Headscale-Laufzeitdaten gehoeren nach /var/lib/headscale." >&2
+    exit 1
+fi
 [[ ! -e "${repo_root}/files/luebeck/etc/container-services/caddy/Caddyfile.example" ]]
 adguard_config="${repo_root}/files/luebeck/etc/container-services/adguard/AdGuardHome.yaml"
 [[ -s "${adguard_config}" ]]
@@ -430,6 +514,7 @@ grep -q '<service name="dns"/>' "${firewalld_zone}"
 grep -q '<service name="http"/>' "${firewalld_zone}"
 grep -q '<service name="https"/>' "${firewalld_zone}"
 grep -q '<port port="443" protocol="udp"/>' "${firewalld_zone}"
+grep -q '<port port="2222" protocol="tcp"/>' "${firewalld_zone}"
 if rg -ni 'forward-port|11000|11001|12000' \
     "${repo_root}/files" "${repo_root}/recipes" "${repo_root}/ignition"; then
     echo "Fehler: Die entfernten Firewall-Portweiterleitungen werden noch referenziert." >&2
@@ -463,7 +548,7 @@ grep -q '^ExecStartPre=/usr/libexec/ensure-service-config-ownership$' \
     exit 1
 }
 bash -n "${ensure_config_ownership}"
-for service_config in headscale caddy adguard; do
+for service_config in headscale caddy adguard vaultwarden smarthome; do
     grep -q "/etc/container-services/${service_config}" "${ensure_config_ownership}"
 done
 grep -q 'chown -R --no-dereference' "${ensure_config_ownership}"
@@ -499,14 +584,10 @@ fi
 
 quadlet_generator=/usr/lib/systemd/system-generators/podman-system-generator
 if [[ -x "${quadlet_generator}" ]]; then
-    QUADLET_UNIT_DIRS="${repo_root}/files/luebeck/etc/containers/systemd/users/1010" \
-        "${quadlet_generator}" --user --dryrun >/dev/null
-    QUADLET_UNIT_DIRS="${repo_root}/files/luebeck/etc/containers/systemd/users/1011" \
-        "${quadlet_generator}" --user --dryrun >/dev/null
-    QUADLET_UNIT_DIRS="${repo_root}/files/luebeck/etc/containers/systemd/users/1012" \
-        "${quadlet_generator}" --user --dryrun >/dev/null
-    QUADLET_UNIT_DIRS="${repo_root}/files/luebeck/etc/containers/systemd/users/1013" \
-        "${quadlet_generator}" --user --dryrun >/dev/null
+    for uid in 1010 1011 1012 1013 1014 1015 1016; do
+        QUADLET_UNIT_DIRS="${repo_root}/files/luebeck/etc/containers/systemd/users/${uid}" \
+            "${quadlet_generator}" --user --dryrun >/dev/null
+    done
 fi
 
 echo "Alle Konfigurationen und Schutzregeln sind gueltig."

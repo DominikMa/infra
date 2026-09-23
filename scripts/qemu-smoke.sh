@@ -112,28 +112,47 @@ timeout 1800 bash -c '
              test \"\$(id -u headscale)\" = 1010 &&
              test \"\$(id -u adguard)\" = 1012 &&
              test \"\$(id -u vaultwarden)\" = 1013 &&
+             test \"\$(id -u smarthome)\" = 1014 &&
+             test \"\$(id -u mealie)\" = 1015 &&
+             test \"\$(id -u onedev)\" = 1016 &&
              test \"\$(getent passwd headscale | cut -d: -f6-7)\" = /var/home/headscale:/bin/fish &&
              test \"\$(getent passwd caddy | cut -d: -f6-7)\" = /var/home/caddy:/bin/fish &&
              test \"\$(getent passwd adguard | cut -d: -f6-7)\" = /var/home/adguard:/bin/fish &&
              test \"\$(getent passwd vaultwarden | cut -d: -f6-7)\" = /var/home/vaultwarden:/bin/fish &&
+             test \"\$(getent passwd smarthome | cut -d: -f6-7)\" = /var/home/smarthome:/bin/fish &&
+             test \"\$(getent passwd mealie | cut -d: -f6-7)\" = /var/home/mealie:/bin/fish &&
+             test \"\$(getent passwd onedev | cut -d: -f6-7)\" = /var/home/onedev:/bin/fish &&
              ! mountpoint -q /var/home/headscale &&
              ! mountpoint -q /var/home/caddy &&
              ! mountpoint -q /var/home/adguard &&
              ! mountpoint -q /var/home/vaultwarden &&
+             ! mountpoint -q /var/home/smarthome &&
+             ! mountpoint -q /var/home/mealie &&
+             ! mountpoint -q /var/home/onedev &&
              sudo btrfs subvolume show /var/lib/service-data/headscale >/dev/null &&
              sudo btrfs subvolume show /var/lib/service-data/caddy >/dev/null &&
              sudo btrfs subvolume show /var/lib/service-data/adguard >/dev/null &&
              sudo btrfs subvolume show /var/lib/service-data/vaultwarden >/dev/null &&
+             sudo btrfs subvolume show /var/lib/service-data/smarthome >/dev/null &&
+             sudo btrfs subvolume show /var/lib/service-data/mealie >/dev/null &&
+             sudo btrfs subvolume show /var/lib/service-data/onedev >/dev/null &&
              test -f /etc/containers/systemd/users/1010/headscale.container &&
              test -f /etc/containers/systemd/users/1011/caddy.container &&
              test -f /etc/containers/systemd/users/1012/adguard.container &&
              test -f /etc/containers/systemd/users/1013/vaultwarden.container &&
+             test -f /etc/containers/systemd/users/1014/homeassistant.container &&
+             test -f /etc/containers/systemd/users/1015/mealie.container &&
+             test -f /etc/containers/systemd/users/1016/onedev.container &&
+             sudo firewall-cmd --zone=public --query-port=2222/tcp &&
              test -f /etc/systemd/user/containers.target &&
              test -L /etc/systemd/user/default.target.wants/containers.target &&
              test -f /var/lib/systemd/linger/headscale &&
              test -f /var/lib/systemd/linger/caddy &&
              test -f /var/lib/systemd/linger/adguard &&
              test -f /var/lib/systemd/linger/vaultwarden &&
+             test -f /var/lib/systemd/linger/smarthome &&
+             test -f /var/lib/systemd/linger/mealie &&
+             test -f /var/lib/systemd/linger/onedev &&
              systemctl is-enabled --quiet firewalld.service &&
              sudo firewall-cmd --zone=public --query-service=dns &&
              sudo firewall-cmd --zone=public --query-service=http &&
@@ -166,6 +185,12 @@ ssh "${ssh_opts[@]}" vaultwarden@127.0.0.1 'test "$(id -u)" = 1013' || {
     echo "Smoke-Test fehlgeschlagen: SSH-Login fuer vaultwarden funktioniert nicht." >&2
     exit 1
 }
+for service_user in smarthome:1014 mealie:1015 onedev:1016; do
+    ssh "${ssh_opts[@]}" "${service_user%%:*}@127.0.0.1" "test \"\$(id -u)\" = ${service_user#*:}" || {
+        echo "Smoke-Test fehlgeschlagen: SSH-Login fuer ${service_user%%:*} funktioniert nicht." >&2
+        exit 1
+    }
+done
 if ssh "${ssh_opts[@]}" caddy@127.0.0.1 true >/dev/null 2>&1; then
     echo "Smoke-Test fehlgeschlagen: caddy darf keinen SSH-Login erlauben." >&2
     exit 1

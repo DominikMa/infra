@@ -6,7 +6,8 @@ StartLimitIntervalSec=10min
 StartLimitBurst=5
 
 [Container]
-Image=ghcr.io/juanfont/headscale:v0.29.3
+Image=ghcr.io/juanfont/headscale:latest
+AutoUpdate=registry
 ContainerName=headscale
 Exec=serve
 Network=headscale.network

@@ -8,4 +8,5 @@
   <service name="http"/>
   <service name="https"/>
   <port port="443" protocol="udp"/>
+  <port port="2222" protocol="tcp"/>
 </zone>

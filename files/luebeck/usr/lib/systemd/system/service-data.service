@@ -2,12 +2,14 @@
 Description=Verify persistent Btrfs service-data subvolumes
 RequiresMountsFor=/var/lib/service-data
 After=systemd-tmpfiles-setup.service
-Before=user@1010.service user@1011.service user@1012.service user@1013.service
+Before=user@1010.service user@1011.service user@1012.service user@1013.service \
+    user@1014.service user@1015.service user@1016.service
 
 [Service]
 Type=oneshot
 ExecStartPre=/usr/libexec/ensure-service-config-ownership
-ExecStart=/usr/libexec/verify-service-data headscale caddy adguard vaultwarden
+ExecStart=/usr/libexec/verify-service-data headscale caddy adguard vaultwarden \
+    smarthome mealie onedev
 RemainAfterExit=yes
 
 [Install]

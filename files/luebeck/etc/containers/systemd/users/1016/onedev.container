@@ -1,0 +1,33 @@
+[Unit]
+Description=OneDev git server
+Requires=podman.socket
+After=podman.socket
+PartOf=containers.target
+StartLimitIntervalSec=10min
+StartLimitBurst=5
+
+[Container]
+Image=docker.io/1dev/server:latest
+AutoUpdate=registry
+ContainerName=onedev
+Network=onedev.network
+Timezone=Europe/Berlin
+Volume=/var/lib/service-data/onedev:/opt/onedev:Z
+# Der ServerDockerExecutor startet Build-Container ueber den Podman-Socket
+# des Benutzers onedev; der Socket ist fuer container_t nicht zugreifbar.
+Volume=%t/podman/podman.sock:/var/run/docker.sock
+SecurityLabelDisable=true
+PublishPort=127.0.0.1:16001:6610/tcp
+PublishPort=2222:6611/tcp
+NoNewPrivileges=true
+
+[Service]
+Restart=on-failure
+RestartSec=30s
+TimeoutStartSec=900
+CPUWeight=50
+MemoryHigh=3G
+MemoryMax=4G
+
+[Install]
+WantedBy=containers.target

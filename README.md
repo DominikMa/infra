@@ -153,31 +153,39 @@ weiterhin immer.
 
 ### Deklarative Service-Benutzer und Konfiguration
 
-`luebeck` definiert `headscale` mit UID/GID 1010, `caddy` mit UID/GID 1011,
-`adguard` mit UID/GID 1012 und `vaultwarden` mit UID/GID 1013 ueber
-`systemd-sysusers`. Alle Homes sind normale
-Verzeichnisse unter
+`luebeck` definiert ueber `systemd-sysusers` je Dienst einen eigenen Benutzer:
+
+| Benutzer      | UID/GID | Container                               | Host-Ports             |
+|---------------|---------|-----------------------------------------|------------------------|
+| `headscale`   | 1010    | Headscale                               | `127.0.0.1:10000/10001`|
+| `caddy`       | 1011    | Caddy                                   | 80, 443                |
+| `adguard`     | 1012    | AdGuard Home                            | 53, `127.0.0.1:12001`  |
+| `vaultwarden` | 1013    | Vaultwarden                             | `127.0.0.1:13001`      |
+| `smarthome`   | 1014    | Home Assistant, Zigbee2MQTT, Mosquitto  | `127.0.0.1:14001/14002`|
+| `mealie`      | 1015    | Mealie                                  | `127.0.0.1:15001`      |
+| `onedev`      | 1016    | OneDev                                  | 2222, `127.0.0.1:16001`|
+
+Alle Homes sind normale Verzeichnisse unter
 `/var/home`; sie sind keine eigenen Subvolumes und enthalten nur reproduzierbaren
 Rootless-Podman-Zustand. `systemd-tmpfiles` erzeugt die Homes, aktiviert Linger
-und legt stattdessen auf dem separat gemounteten Daten-Dateisystem die
-persistenten Btrfs-Subvolumes
-`/var/lib/service-data/headscale`, `/var/lib/service-data/caddy`,
-`/var/lib/service-data/adguard` und `/var/lib/service-data/vaultwarden` an.
+und legt stattdessen auf dem separat gemounteten Daten-Dateisystem je Benutzer
+das persistente Btrfs-Subvolume `/var/lib/service-data/<benutzer>` an.
 Eine Boot-Unit verifiziert die Subvolumes, bevor die User-systemd-Manager starten.
 Ignition installiert die festen, nicht ueberlappenden SubUID-/SubGID-Bereiche
-bereits vor dem ersten Boot nach `/etc/subuid` und `/etc/subgid`.
+bereits vor dem ersten Boot nach `/etc/subuid` und `/etc/subgid`. Einmalige
+Schritte fuer bereits installierte Systeme und die Uebernahme der geretteten
+Daten stehen in [MIGRATE.md](MIGRATE.md).
 
 Die Rootless-Quadlets liegen direkt in den von Podman vorgesehenen
-UID-spezifischen Verzeichnissen `/etc/containers/systemd/users/1010` und
-`/etc/containers/systemd/users/1011`, `/etc/containers/systemd/users/1012` und
-`/etc/containers/systemd/users/1013`.
+UID-spezifischen Verzeichnissen `/etc/containers/systemd/users/<uid>`.
 Es werden keine Dateien in die Homes
 kopiert. Die Konfiguration der Container liegt getrennt von eventuell nativ
-installierten Diensten unter `/etc/container-services/headscale` und
-`/etc/container-services/caddy`. Fuer Headscale liefert das Image vorerst nur
-`config.yaml.example`; ohne die produktive `config.yaml` verhindert
-`ConditionPathExists` dessen Containerstart. Caddys produktive Konfiguration ist
-dagegen deklarativ als `Caddyfile` im Image enthalten.
+installierten Diensten unter `/etc/container-services/<benutzer>`. Headscales
+`config.yaml`, Caddys `Caddyfile`, AdGuards `AdGuardHome.yaml` und Mosquittos
+`mosquitto.conf` sind deklarativ im Image enthalten. Geheimnisse wie
+`vaultwarden.env` und `mosquitto.passwd` liegen nur lokal auf dem Rechner; das
+Image liefert jeweils eine `.example`-Datei, und `ConditionPathExists`
+verhindert den Containerstart, solange die echte Datei fehlt.
 
 Dateien unter `/etc` sind OSTree-Konfigurationsdefaults. Lokale Aenderungen
 bleiben bei einem Image-Update erhalten und werden sichtbar mit:
@@ -203,24 +211,43 @@ systemd-Startlimit; ein dauerhaft defekter Container wird dadurch nicht
 unbegrenzt neu erzeugt.
 
 Der lokale YubiKey-Key wird nicht ins OCI-Image aufgenommen. Ignition installiert
-ihn fuer `core` und zusaetzlich unter `/etc/ssh/authorized_keys/headscale`,
-`/etc/ssh/authorized_keys/adguard` sowie `/etc/ssh/authorized_keys/vaultwarden`.
-`headscale`, `adguard` und `vaultwarden` erlauben
+ihn fuer `core` und zusaetzlich unter `/etc/ssh/authorized_keys/<benutzer>` fuer
+`headscale`, `adguard`, `vaultwarden`, `smarthome`, `mealie` und `onedev`. Das
+Verzeichnis hat Modus `0755`, weil sshd die Datei mit den Rechten des
+Zielbenutzers liest; jede Schluesseldatei ist `0600` und gehoert ihrem Benutzer.
+Diese Benutzer erlauben
 ausschliesslich Public-Key-SSH ohne Forwarding; `caddy` hat `nologin` und wird
 von `core` via `sudo` beziehungsweise `runuser` administriert.
 
-Headscale v0.29.3 bindet HTTP lokal an Port 10000 und Metrics/Debug lokal an
-10001. Seine persistenten Daten werden aus
-`/var/lib/service-data/headscale` nach `/var/lib/headscale` gemountet.
-Ein bewusster lokaler Test-Override wird analog aktiviert:
+### Automatische Container-Updates
+
+Schnelle Sicherheitsupdates haben Vorrang vor Stabilitaet. Alle Anwendungen
+ausser Caddy und AdGuard laufen deshalb mit einem `latest`- beziehungsweise
+`stable`-Tag und `AutoUpdate=registry`. Der fuer alle Benutzer-Manager
+aktivierte `podman-auto-update.timer` prueft taeglich mit bis zu 15 Minuten
+zufaelliger Verzoegerung auf neue Images, zieht sie und startet die betroffenen
+Container neu. Startet eine Unit danach nicht, rollt Podman auf das vorherige
+Image zurueck; fachliche Fehler nach erfolgreichem Start erkennt es nicht.
+Caddy und AdGuard tragen kein `AutoUpdate`-Label und bleiben gepinnt. Status und
+letzte Laeufe, hier am Beispiel Vaultwarden:
 
 ```bash
-sudo cp /etc/container-services/headscale/config.yaml.example \
-  /etc/container-services/headscale/config.yaml
-sudoedit /etc/container-services/headscale/config.yaml
-sudo -u headscale env XDG_RUNTIME_DIR=/run/user/1010 \
-  /usr/libexec/service-containers start
+ssh vaultwarden@luebeck \
+  'podman auto-update --dry-run; systemctl --user list-timers podman-auto-update.timer'
 ```
+
+### Rootless Headscale
+
+Headscale bindet HTTP lokal an Port 10000 und Metrics/Debug lokal an
+10001. Caddy stellt es unter `headscale.mairhoefer.xyz` und
+`headscale.home.mairhoefer.xyz` bereit. Die `config.yaml` basiert auf dem
+offiziellen Beispiel von v0.29.3 mit den Werten der vorherigen Installation:
+`server_url` bleibt unveraendert `http://headscale.mairhoefer.xyz:443`, damit
+registrierte Clients nicht neu angemeldet werden muessen. Datenbank und
+Noise-Schluessel liegen im Subvolume `/var/lib/service-data/headscale`, das nach
+`/var/lib/headscale` gemountet wird. Die `extra_records` der MagicDNS-Konfiguration
+zeigen noch auf `100.64.0.6`, den Tailnet-Knoten `home` der vorherigen
+Installation.
 
 ### Rootless AdGuard Home
 
@@ -241,19 +268,82 @@ unter `/etc/container-services/adguard/AdGuardHome.yaml` und wird schreibbar nac
 `/opt/adguardhome/conf` gemountet. AdGuard darf sie daher lokal aktualisieren;
 Abweichungen vom Image-Default zeigt `ostree admin config-diff`. Das
 Work-Verzeichnis bleibt im gesicherten Subvolume unter
-`/var/lib/service-data/adguard/data`. Die rund 1,1 GiB geretteten Laufzeitdaten
-werden von dem Rechner, auf dem `/home/work/rescue` liegt, so uebertragen:
+`/var/lib/service-data/adguard/data`. Query-Logs, Sessions, Filterkopien und
+Statistiken werden nicht ins Image aufgenommen.
 
-```bash
-rsync -a --no-owner --no-group --chmod=D750,F600 \
-  /home/work/rescue/root/root/adguard/data/ \
-  adguard@luebeck:/var/lib/service-data/adguard/data/
-ssh adguard@luebeck \
-  'XDG_RUNTIME_DIR=/run/user/1012 /usr/libexec/service-containers start'
-```
+### Rootless Vaultwarden
 
-Query-Logs, Sessions, Filterkopien und Statistiken werden nicht ins Image
-aufgenommen.
+Vaultwarden verwendet ein eigenes Container-Netz. Die
+Weboberflaeche und die API werden nur als `127.0.0.1:13001` auf dem Host
+veroeffentlicht und von Caddy unter `warden.mairhoefer.xyz` und
+`warden.home.mairhoefer.xyz` bereitgestellt. Die Client-IP fuer Logs und
+Rate-Limits liest Vaultwarden per `IP_HEADER=X-Forwarded-For` aus dem Header,
+den Caddy ohne `trusted_proxies` stets selbst mit der echten Gegenstelle setzt.
+WebSocket-Benachrichtigungen laufen seit Vaultwarden 1.29 ueber
+denselben Port. Das Subvolume `/var/lib/service-data/vaultwarden` wird direkt
+nach `/data` gemountet und enthaelt SQLite-Datenbank, RSA-Schluessel,
+Attachments, Sends und Icon-Cache.
+
+Die nicht geheime Konfiguration steht als `Environment=` im Quadlet:
+`DOMAIN`, `SIGNUPS_ALLOWED=false` und die SMTP-Parameter mit STARTTLS auf Port
+587. Geheimnisse liegen ausschliesslich in der lokalen Datei
+`/etc/container-services/vaultwarden/vaultwarden.env`. Die Admin-Oberflaeche
+bleibt ohne `ADMIN_TOKEN` deaktiviert. Eine per Admin-Oberflaeche erzeugte
+`/data/config.json` wuerde die Umgebungsvariablen ueberschreiben.
+
+### Rootless Smarthome
+
+Home Assistant, Zigbee2MQTT und Mosquitto laufen gemeinsam als `smarthome` im
+Container-Netz `smarthome` und erreichen sich dort ueber ihre Containernamen.
+Das Netz ist fest auf `10.89.0.0/24` gesetzt, weil Home Assistant diesem Bereich
+in seiner `configuration.yaml` als `trusted_proxies` vertraut: Verbindungen von
+Caddy erreichen den Container ueber das Gateway dieses Netzes. Home Assistant
+(`127.0.0.1:14001`) und die Zigbee2MQTT-Oberflaeche (`127.0.0.1:14002`) stellt
+Caddy als `homeassistant.home.mairhoefer.xyz` und
+`zigbee2mqtt.home.mairhoefer.xyz` ausschliesslich fuer `internal_clients` bereit.
+MQTT wird nicht auf dem Host veroeffentlicht.
+
+Die Daten von Home Assistant und Zigbee2MQTT liegen unter
+`/var/lib/service-data/smarthome/{homeassistant,zigbee2mqtt}`; beide schreiben
+ihre YAML-Konfiguration selbst und bringen ihre Geheimnisse (`secrets.yaml`,
+Netzwerkschluessel, MQTT-Passwort) dort mit. Mosquitto ist zustandslos; seine
+`mosquitto.conf` kommt read-only aus `/etc/container-services/smarthome/mosquitto`,
+die Passwortdatei `mosquitto.passwd` liegt nur lokal daneben. Weil Mosquitto
+2.1 vor dem Lesen der Passwortdatei sonst auf einen eigenen Benutzer wechselt,
+setzt die Konfiguration `user root`; im Rootless-Container ist das der
+unprivilegierte Host-Benutzer `smarthome`.
+
+Der ConBee-III-Stick wird per `AddDevice` als `/dev/ttyUSB0` durchgereicht. Die
+Udev-Regel `70-conbee.rules` uebergibt ihn anhand seiner Seriennummer an
+`smarthome`. Ohne eingesteckten Stick ueberspringt `ConditionPathExists` den
+Zigbee2MQTT-Container; nach dem Einstecken startet ihn
+`/usr/libexec/service-containers start`.
+
+### Rootless Mealie
+
+Mealie ist als `127.0.0.1:15001` veroeffentlicht und unter
+`mealie.home.mairhoefer.xyz` erreichbar. `PUID=0` und `PGID=0` lassen den
+Einstiegspunkt ohne rekursives `chown` als Container-root laufen, also als
+Host-Benutzer `mealie`. Das Subvolume `/var/lib/service-data/mealie` wird nach
+`/app/data` gemountet. Registrierungen sind deaktiviert.
+
+### Rootless OneDev
+
+OneDev ist per HTTP als `127.0.0.1:16001` veroeffentlicht und unter
+`git.home.mairhoefer.xyz` erreichbar. Git ueber SSH laeuft wie bisher auf Port
+2222 aller Adressen; firewalld gibt ihn frei. Installation, HSQLDB-Datenbank und
+Repositories liegen gemeinsam im Subvolume `/var/lib/service-data/onedev`, das
+nach `/opt/onedev` gemountet wird; OneDev aktualisiert die Installation dort beim
+Start eines neuen Images selbst.
+
+Der Job-Executor `ServerDockerExecutor` startet Build-Container ueber den
+Podman-Socket des Benutzers `onedev`, der als `/var/run/docker.sock` gemountet
+wird. Das Quadlet zieht `podman.socket` dafuer als Abhaengigkeit nach. Als
+einziger Container laeuft OneDev mit `SecurityLabelDisable=true`, weil
+`container_t` den Socket sonst nicht erreicht. Der Socket gibt ohnehin volle
+Kontrolle ueber den Podman-Zustand von `onedev`; die Grenze bildet der
+unprivilegierte Host-Benutzer.
+
 
 ### Transparente Netzwerk-Bridge
 
@@ -377,8 +467,8 @@ ein Containerstart dennoch transient fehl, etwa wegen noch nicht verfuegbarem
 DNS, wartet die generierte Unit 30 Sekunden vor dem naechsten Versuch.
 Das gemeinsame `/usr/libexec/service-containers start|stop` steuert deshalb ohne
 Servicenamen immer den gesamten Container-Stack des aufrufenden Benutzers.
-Backups werden als root mit `/usr/libexec/service-backup headscale`, `caddy`,
-`adguard` oder `vaultwarden` gestartet. Der Orchestrator stoppt das Target des
+Backups werden als root mit `/usr/libexec/service-backup <benutzer>` gestartet,
+etwa `/usr/libexec/service-backup vaultwarden`. Der Orchestrator stoppt das Target des
 jeweiligen Benutzers, snapshotet nur sein Daten-Subvolume und startet es sofort
 wieder. Der read-only Snapshot wird an den Borg-Platzhalter uebergeben und
 anschliessend geloescht. Servicespezifische Backup-Hooks gibt es nicht. Home,

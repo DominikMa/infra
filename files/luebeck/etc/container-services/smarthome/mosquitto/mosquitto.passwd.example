@@ -1,0 +1,2 @@
+# Mit mosquitto_passwd erzeugen und als mosquitto.passwd (Modus 0600) ablegen.
+zigbee2mqtt:CHANGEME

@@ -75,3 +75,27 @@ storage:
         id: 1013
       contents:
         local: local/luebeck/authorized_keys
+    - path: /etc/ssh/authorized_keys/smarthome
+      mode: 0600
+      user:
+        id: 1014
+      group:
+        id: 1014
+      contents:
+        local: local/luebeck/authorized_keys
+    - path: /etc/ssh/authorized_keys/mealie
+      mode: 0600
+      user:
+        id: 1015
+      group:
+        id: 1015
+      contents:
+        local: local/luebeck/authorized_keys
+    - path: /etc/ssh/authorized_keys/onedev
+      mode: 0600
+      user:
+        id: 1016
+      group:
+        id: 1016
+      contents:
+        local: local/luebeck/authorized_keys
