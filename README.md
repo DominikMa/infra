@@ -335,7 +335,7 @@ unprivilegierte Host-Benutzer `smarthome`.
 Der ConBee-III-Stick wird per `AddDevice` als `/dev/ttyUSB0` durchgereicht. Die
 Udev-Regel `70-conbee.rules` uebergibt ihn anhand seiner Seriennummer an
 `smarthome`. SELinux verbietet `container_t` den Zugriff auf `usbtty_device_t`,
-deshalb laeuft nur dieser Container mit `SecurityLabelDisable=true`. Ohne eingesteckten Stick ueberspringt `ConditionPathExists` den
+deshalb laeuft dieser Container neben OneDev mit `SecurityLabelDisable=true`. Ohne eingesteckten Stick ueberspringt `ConditionPathExists` den
 Zigbee2MQTT-Container; nach dem Einstecken startet ihn
 `/usr/libexec/service-containers start`.
 
@@ -358,9 +358,9 @@ Start eines neuen Images selbst.
 
 Der Job-Executor `ServerDockerExecutor` startet Build-Container ueber den
 Podman-Socket des Benutzers `onedev`, der als `/var/run/docker.sock` gemountet
-wird. Das Quadlet zieht `podman.socket` dafuer als Abhaengigkeit nach. Als
-einziger Container laeuft OneDev mit `SecurityLabelDisable=true`, weil
-`container_t` den Socket sonst nicht erreicht. Der Socket gibt ohnehin volle
+wird. Das Quadlet zieht `podman.socket` dafuer als Abhaengigkeit nach. OneDev
+laeuft mit `SecurityLabelDisable=true`, weil `container_t` den Socket sonst
+nicht erreicht. Der Socket gibt ohnehin volle
 Kontrolle ueber den Podman-Zustand von `onedev`; die Grenze bildet der
 unprivilegierte Host-Benutzer.
 
