@@ -1,0 +1,3 @@
+warden.mairhoefer.xyz, warden.home.mairhoefer.xyz {
+	reverse_proxy 127.0.0.1:13001
+}

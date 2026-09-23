@@ -153,22 +153,24 @@ weiterhin immer.
 
 ### Deklarative Service-Benutzer und Konfiguration
 
-`luebeck` definiert `headscale` mit UID/GID 1010, `caddy` mit UID/GID 1011 und
-`adguard` mit UID/GID 1012 ueber `systemd-sysusers`. Alle Homes sind normale
+`luebeck` definiert `headscale` mit UID/GID 1010, `caddy` mit UID/GID 1011,
+`adguard` mit UID/GID 1012 und `vaultwarden` mit UID/GID 1013 ueber
+`systemd-sysusers`. Alle Homes sind normale
 Verzeichnisse unter
 `/var/home`; sie sind keine eigenen Subvolumes und enthalten nur reproduzierbaren
 Rootless-Podman-Zustand. `systemd-tmpfiles` erzeugt die Homes, aktiviert Linger
 und legt stattdessen auf dem separat gemounteten Daten-Dateisystem die
 persistenten Btrfs-Subvolumes
-`/var/lib/service-data/headscale`, `/var/lib/service-data/caddy` und
-`/var/lib/service-data/adguard` an.
+`/var/lib/service-data/headscale`, `/var/lib/service-data/caddy`,
+`/var/lib/service-data/adguard` und `/var/lib/service-data/vaultwarden` an.
 Eine Boot-Unit verifiziert die Subvolumes, bevor die User-systemd-Manager starten.
 Ignition installiert die festen, nicht ueberlappenden SubUID-/SubGID-Bereiche
 bereits vor dem ersten Boot nach `/etc/subuid` und `/etc/subgid`.
 
 Die Rootless-Quadlets liegen direkt in den von Podman vorgesehenen
 UID-spezifischen Verzeichnissen `/etc/containers/systemd/users/1010` und
-`/etc/containers/systemd/users/1011` und `/etc/containers/systemd/users/1012`.
+`/etc/containers/systemd/users/1011`, `/etc/containers/systemd/users/1012` und
+`/etc/containers/systemd/users/1013`.
 Es werden keine Dateien in die Homes
 kopiert. Die Konfiguration der Container liegt getrennt von eventuell nativ
 installierten Diensten unter `/etc/container-services/headscale` und
@@ -201,8 +203,9 @@ systemd-Startlimit; ein dauerhaft defekter Container wird dadurch nicht
 unbegrenzt neu erzeugt.
 
 Der lokale YubiKey-Key wird nicht ins OCI-Image aufgenommen. Ignition installiert
-ihn fuer `core` und zusaetzlich unter `/etc/ssh/authorized_keys/headscale` sowie
-`/etc/ssh/authorized_keys/adguard`. `headscale` und `adguard` erlauben
+ihn fuer `core` und zusaetzlich unter `/etc/ssh/authorized_keys/headscale`,
+`/etc/ssh/authorized_keys/adguard` sowie `/etc/ssh/authorized_keys/vaultwarden`.
+`headscale`, `adguard` und `vaultwarden` erlauben
 ausschliesslich Public-Key-SSH ohne Forwarding; `caddy` hat `nologin` und wird
 von `core` via `sudo` beziehungsweise `runuser` administriert.
 
@@ -374,8 +377,8 @@ ein Containerstart dennoch transient fehl, etwa wegen noch nicht verfuegbarem
 DNS, wartet die generierte Unit 30 Sekunden vor dem naechsten Versuch.
 Das gemeinsame `/usr/libexec/service-containers start|stop` steuert deshalb ohne
 Servicenamen immer den gesamten Container-Stack des aufrufenden Benutzers.
-Backups werden als root mit `/usr/libexec/service-backup headscale`, `caddy`
-oder `adguard` gestartet. Der Orchestrator stoppt das Target des
+Backups werden als root mit `/usr/libexec/service-backup headscale`, `caddy`,
+`adguard` oder `vaultwarden` gestartet. Der Orchestrator stoppt das Target des
 jeweiligen Benutzers, snapshotet nur sein Daten-Subvolume und startet es sofort
 wieder. Der read-only Snapshot wird an den Borg-Platzhalter uebergeben und
 anschliessend geloescht. Servicespezifische Backup-Hooks gibt es nicht. Home,

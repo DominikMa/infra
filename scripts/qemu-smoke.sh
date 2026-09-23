@@ -111,23 +111,29 @@ timeout 1800 bash -c '
              test \"\$(id -u caddy)\" = 1011 &&
              test \"\$(id -u headscale)\" = 1010 &&
              test \"\$(id -u adguard)\" = 1012 &&
+             test \"\$(id -u vaultwarden)\" = 1013 &&
              test \"\$(getent passwd headscale | cut -d: -f6-7)\" = /var/home/headscale:/bin/fish &&
              test \"\$(getent passwd caddy | cut -d: -f6-7)\" = /var/home/caddy:/bin/fish &&
              test \"\$(getent passwd adguard | cut -d: -f6-7)\" = /var/home/adguard:/bin/fish &&
+             test \"\$(getent passwd vaultwarden | cut -d: -f6-7)\" = /var/home/vaultwarden:/bin/fish &&
              ! mountpoint -q /var/home/headscale &&
              ! mountpoint -q /var/home/caddy &&
              ! mountpoint -q /var/home/adguard &&
+             ! mountpoint -q /var/home/vaultwarden &&
              sudo btrfs subvolume show /var/lib/service-data/headscale >/dev/null &&
              sudo btrfs subvolume show /var/lib/service-data/caddy >/dev/null &&
              sudo btrfs subvolume show /var/lib/service-data/adguard >/dev/null &&
+             sudo btrfs subvolume show /var/lib/service-data/vaultwarden >/dev/null &&
              test -f /etc/containers/systemd/users/1010/headscale.container &&
              test -f /etc/containers/systemd/users/1011/caddy.container &&
              test -f /etc/containers/systemd/users/1012/adguard.container &&
+             test -f /etc/containers/systemd/users/1013/vaultwarden.container &&
              test -f /etc/systemd/user/containers.target &&
              test -L /etc/systemd/user/default.target.wants/containers.target &&
              test -f /var/lib/systemd/linger/headscale &&
              test -f /var/lib/systemd/linger/caddy &&
              test -f /var/lib/systemd/linger/adguard &&
+             test -f /var/lib/systemd/linger/vaultwarden &&
              systemctl is-enabled --quiet firewalld.service &&
              sudo firewall-cmd --zone=public --query-service=dns &&
              sudo firewall-cmd --zone=public --query-service=http &&
@@ -154,6 +160,10 @@ ssh "${ssh_opts[@]}" headscale@127.0.0.1 'test "$(id -u)" = 1010' || {
 }
 ssh "${ssh_opts[@]}" adguard@127.0.0.1 'test "$(id -u)" = 1012' || {
     echo "Smoke-Test fehlgeschlagen: SSH-Login fuer adguard funktioniert nicht." >&2
+    exit 1
+}
+ssh "${ssh_opts[@]}" vaultwarden@127.0.0.1 'test "$(id -u)" = 1013' || {
+    echo "Smoke-Test fehlgeschlagen: SSH-Login fuer vaultwarden funktioniert nicht." >&2
     exit 1
 }
 if ssh "${ssh_opts[@]}" caddy@127.0.0.1 true >/dev/null 2>&1; then

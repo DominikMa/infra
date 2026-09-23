@@ -4,7 +4,8 @@ set -euo pipefail
 for owner_and_path in \
     "1010:1010:/etc/container-services/headscale" \
     "1011:1011:/etc/container-services/caddy" \
-    "1012:1012:/etc/container-services/adguard"; do
+    "1012:1012:/etc/container-services/adguard" \
+    "1013:1013:/etc/container-services/vaultwarden"; do
     owner=${owner_and_path%%:*}
     remainder=${owner_and_path#*:}
     group=${remainder%%:*}

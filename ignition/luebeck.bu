@@ -67,3 +67,11 @@ storage:
         id: 1012
       contents:
         local: local/luebeck/authorized_keys
+    - path: /etc/ssh/authorized_keys/vaultwarden
+      mode: 0600
+      user:
+        id: 1013
+      group:
+        id: 1013
+      contents:
+        local: local/luebeck/authorized_keys

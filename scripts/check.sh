@@ -150,6 +150,7 @@ for subid_file in /etc/subuid /etc/subgid; do
 done
 grep -q '/etc/ssh/authorized_keys/headscale' "${repo_root}/ignition/luebeck.bu"
 grep -q '/etc/ssh/authorized_keys/adguard' "${repo_root}/ignition/luebeck.bu"
+grep -q '/etc/ssh/authorized_keys/vaultwarden' "${repo_root}/ignition/luebeck.bu"
 if grep -q '/etc/ssh/authorized_keys/caddy' "${repo_root}/ignition/luebeck.bu"; then
     echo "Fehler: caddy darf keinen SSH-Key erhalten." >&2
     exit 1
@@ -159,14 +160,17 @@ sysusers="${repo_root}/files/luebeck/usr/lib/sysusers.d/service-users.conf"
 grep -q '^u headscale 1010 .* /var/home/headscale /bin/fish$' "${sysusers}"
 grep -q '^u caddy 1011 .* /var/home/caddy /bin/fish$' "${sysusers}"
 grep -q '^u adguard 1012 .* /var/home/adguard /bin/fish$' "${sysusers}"
+grep -q '^u vaultwarden 1013 .* /var/home/vaultwarden /bin/fish$' "${sysusers}"
 tmpfiles="${repo_root}/files/luebeck/usr/lib/tmpfiles.d/service-data.conf"
 grep -q '^d /var/home/headscale 0750 1010 1010 -$' "${tmpfiles}"
 grep -q '^d /var/home/caddy 0750 1011 1011 -$' "${tmpfiles}"
 grep -q '^d /var/home/adguard 0750 1012 1012 -$' "${tmpfiles}"
+grep -q '^d /var/home/vaultwarden 0750 1013 1013 -$' "${tmpfiles}"
 grep -q '^v /var/lib/service-data/headscale 0750 1010 1010 -$' "${tmpfiles}"
 grep -q '^v /var/lib/service-data/caddy 0750 1011 1011 -$' "${tmpfiles}"
 grep -q '^v /var/lib/service-data/adguard 0750 1012 1012 -$' "${tmpfiles}"
 grep -q '^d /var/lib/service-data/adguard/data 0750 1012 1012 -$' "${tmpfiles}"
+grep -q '^v /var/lib/service-data/vaultwarden 0750 1013 1013 -$' "${tmpfiles}"
 if grep -q '/etc/container-services' "${tmpfiles}"; then
     echo "Fehler: Eigentum der Image-Konfiguration darf nicht durch Tmpfiles korrigiert werden." >&2
     exit 1
@@ -174,16 +178,18 @@ fi
 grep -q '^f /var/lib/systemd/linger/headscale ' "${tmpfiles}"
 grep -q '^f /var/lib/systemd/linger/caddy ' "${tmpfiles}"
 grep -q '^f /var/lib/systemd/linger/adguard ' "${tmpfiles}"
+grep -q '^f /var/lib/systemd/linger/vaultwarden ' "${tmpfiles}"
 
 subid_ignition="${repo_root}/ignition/luebeck/subids"
 for expected_subid in \
     core:100000:65536 \
     headscale:200000:65536 \
     caddy:300000:65536 \
-    adguard:400000:65536; do
+    adguard:400000:65536 \
+    vaultwarden:500000:65536; do
     [[ $(grep -Fxc "${expected_subid}" "${subid_ignition}") -eq 1 ]]
 done
-[[ $(wc -l < "${subid_ignition}") -eq 4 ]]
+[[ $(wc -l < "${subid_ignition}") -eq 5 ]]
 if rg -n 'configure-luebeck-subids|SUBID_ROOT' \
     "${repo_root}/files" "${repo_root}/recipes" "${repo_root}/ignition"; then
     echo "Fehler: die entfernte Build-Zeit-SubID-Provisionierung wird noch referenziert." >&2
@@ -195,7 +201,7 @@ config_owner_script="${repo_root}/files/scripts/configure-luebeck-config-ownersh
     exit 1
 }
 bash -n "${config_owner_script}"
-for uid in 1010 1011 1012; do
+for uid in 1010 1011 1012 1013; do
     grep -q "\"${uid}:${uid}:" "${config_owner_script}"
 done
 grep -q 'configure-luebeck-config-ownership.sh' "${repo_root}/recipes/luebeck.yml"
@@ -247,7 +253,7 @@ grep -q '^ListenAddress 0\.0\.0\.0:22$' "${ssh_listeners}"
 grep -q '^ListenAddress \[2a02:8108:142b:ed00:5516:4aac:9e0a:3c00\]:22$' \
     "${ssh_listeners}"
 [[ $(grep -c '^ListenAddress ' "${ssh_listeners}") -eq 2 ]]
-grep -q '^Match User headscale,adguard$' "${ssh_config}"
+grep -q '^Match User headscale,adguard,vaultwarden$' "${ssh_config}"
 grep -q 'AuthenticationMethods publickey' "${ssh_config}"
 grep -q 'AuthorizedKeysFile /etc/ssh/authorized_keys/%u' "${ssh_config}"
 grep -q 'AllowTcpForwarding no' "${ssh_config}"
@@ -255,7 +261,8 @@ grep -q 'AllowTcpForwarding no' "${ssh_config}"
 headscale_quadlet="${repo_root}/files/luebeck/etc/containers/systemd/users/1010/headscale.container"
 caddy_quadlet="${repo_root}/files/luebeck/etc/containers/systemd/users/1011/caddy.container"
 adguard_quadlet="${repo_root}/files/luebeck/etc/containers/systemd/users/1012/adguard.container"
-for quadlet in "${headscale_quadlet}" "${caddy_quadlet}" "${adguard_quadlet}"; do
+vaultwarden_quadlet="${repo_root}/files/luebeck/etc/containers/systemd/users/1013/vaultwarden.container"
+for quadlet in "${headscale_quadlet}" "${caddy_quadlet}" "${adguard_quadlet}" "${vaultwarden_quadlet}"; do
     grep -q '^Restart=on-failure$' "${quadlet}"
     grep -q '^RestartSec=30s$' "${quadlet}"
     grep -q '^StartLimitIntervalSec=10min$' "${quadlet}"
@@ -265,7 +272,7 @@ for quadlet in "${headscale_quadlet}" "${caddy_quadlet}" "${adguard_quadlet}"; d
         exit 1
     fi
 done
-for uid in 1010 1011 1012; do
+for uid in 1010 1011 1012 1013; do
     user_dropin="${repo_root}/files/luebeck/usr/lib/systemd/system/user@${uid}.service.d/10-service-data.conf"
     grep -q '^Requires=service-data.service$' "${user_dropin}"
     grep -q '^Wants=network-online.target$' "${user_dropin}"
@@ -298,6 +305,29 @@ fi
 grep -q '^PublishPort=127\.0\.0\.1:12001:80/tcp$' "${adguard_quadlet}"
 grep -q '^IPv6=true$' "${repo_root}/files/luebeck/etc/containers/systemd/users/1012/adguard.network"
 grep -q '^ConditionPathExists=/etc/container-services/adguard/AdGuardHome.yaml$' "${adguard_quadlet}"
+grep -q '^Image=docker.io/vaultwarden/server:latest$' "${vaultwarden_quadlet}"
+grep -q '^AutoUpdate=registry$' "${vaultwarden_quadlet}"
+for quadlet in "${headscale_quadlet}" "${caddy_quadlet}" "${adguard_quadlet}"; do
+    if grep -q '^AutoUpdate=' "${quadlet}"; then
+        echo "Fehler: nur Vaultwarden darf automatisch aktualisiert werden." >&2
+        exit 1
+    fi
+done
+[[ $(readlink "${repo_root}/files/luebeck/etc/systemd/user/timers.target.wants/podman-auto-update.timer") == \
+    "/usr/lib/systemd/user/podman-auto-update.timer" ]]
+grep -q '^Volume=/var/lib/service-data/vaultwarden:/data:Z$' "${vaultwarden_quadlet}"
+grep -q '^PublishPort=127\.0\.0\.1:13001:80/tcp$' "${vaultwarden_quadlet}"
+grep -q '^Network=vaultwarden.network$' "${vaultwarden_quadlet}"
+grep -q '^Environment=DOMAIN=https://warden\.mairhoefer\.xyz$' "${vaultwarden_quadlet}"
+grep -q '^Environment=SIGNUPS_ALLOWED=false$' "${vaultwarden_quadlet}"
+grep -q '^EnvironmentFile=/etc/container-services/vaultwarden/vaultwarden.env$' "${vaultwarden_quadlet}"
+grep -q '^ConditionPathExists=/etc/container-services/vaultwarden/vaultwarden.env$' "${vaultwarden_quadlet}"
+if grep -Eq '^Environment=[A-Z_]*(PASSWORD|TOKEN|KEY)=' "${vaultwarden_quadlet}"; then
+    echo "Fehler: Vaultwarden-Secrets gehoeren in die lokale vaultwarden.env." >&2
+    exit 1
+fi
+[[ -f "${repo_root}/files/luebeck/etc/container-services/vaultwarden/vaultwarden.env.example" ]]
+[[ ! -e "${repo_root}/files/luebeck/etc/container-services/vaultwarden/vaultwarden.env" ]]
 resolved_dropin="${repo_root}/files/luebeck/etc/systemd/resolved.conf.d/10-disable-stub.conf"
 grep -q '^\[Resolve\]$' "${resolved_dropin}"
 grep -q '^DNSStubListener=no$' "${resolved_dropin}"
@@ -316,7 +346,7 @@ container_control="${repo_root}/files/system/usr/libexec/service-containers"
 bash -n "${container_control}"
 grep -q 'systemctl --user start containers.target' "${container_control}"
 grep -q 'systemctl --user stop containers.target' "${container_control}"
-for quadlet in "${headscale_quadlet}" "${caddy_quadlet}" "${adguard_quadlet}"; do
+for quadlet in "${headscale_quadlet}" "${caddy_quadlet}" "${adguard_quadlet}" "${vaultwarden_quadlet}"; do
     grep -q '^PartOf=containers.target$' "${quadlet}"
     grep -q '^WantedBy=containers.target$' "${quadlet}"
 done
@@ -356,6 +386,10 @@ adguard_caddyfile="${repo_root}/files/luebeck/etc/container-services/caddy/servi
 grep -q '^adguard-admin\.home\.mairhoefer\.xyz {$' "${adguard_caddyfile}"
 grep -q '^\s*import internal_clients$' "${adguard_caddyfile}"
 grep -q '^\s*reverse_proxy 127\.0\.0\.1:12001$' "${adguard_caddyfile}"
+vaultwarden_caddyfile="${repo_root}/files/luebeck/etc/container-services/caddy/services/vaultwarden.caddyfile"
+grep -q '^warden\.mairhoefer\.xyz, warden\.home\.mairhoefer\.xyz {$' "${vaultwarden_caddyfile}"
+grep -q '^\s*reverse_proxy 127\.0\.0\.1:13001$' "${vaultwarden_caddyfile}"
+grep -q '^Environment=IP_HEADER=X-Forwarded-For$' "${vaultwarden_quadlet}"
 grep -q 'reverse_proxy synology\.internal\.mairhoefer\.xyz:' "${synology_caddyfile}"
 if grep -q 'header_up' "${synology_caddyfile}"; then
     echo "Fehler: redundante manuelle Proxy-Header verbleiben in der Synology-Konfiguration." >&2
@@ -467,6 +501,8 @@ if [[ -x "${quadlet_generator}" ]]; then
     QUADLET_UNIT_DIRS="${repo_root}/files/luebeck/etc/containers/systemd/users/1011" \
         "${quadlet_generator}" --user --dryrun >/dev/null
     QUADLET_UNIT_DIRS="${repo_root}/files/luebeck/etc/containers/systemd/users/1012" \
+        "${quadlet_generator}" --user --dryrun >/dev/null
+    QUADLET_UNIT_DIRS="${repo_root}/files/luebeck/etc/containers/systemd/users/1013" \
         "${quadlet_generator}" --user --dryrun >/dev/null
 fi
 
