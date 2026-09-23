@@ -292,8 +292,10 @@ for quadlet in "${all_quadlets[@]}"; do
     grep -q '^RestartSec=30s$' "${quadlet}"
     grep -q '^StartLimitIntervalSec=10min$' "${quadlet}"
     grep -q '^StartLimitBurst=5$' "${quadlet}"
-    # Ausnahme: OneDev steuert Build-Container ueber den Podman-Socket.
-    if [[ "${quadlet}" != "${onedev_quadlet}" ]] && grep -q '^SecurityLabelDisable=' "${quadlet}"; then
+    # Ausnahmen: OneDev steuert Build-Container ueber den Podman-Socket,
+    # Zigbee2MQTT braucht den ConBee-Stick (usbtty_device_t).
+    if [[ "${quadlet}" != "${onedev_quadlet}" && "${quadlet}" != "${zigbee2mqtt_quadlet}" ]] &&
+        grep -q '^SecurityLabelDisable=' "${quadlet}"; then
         echo "Fehler: SELinux-Label-Trennung darf nicht deaktiviert werden." >&2
         exit 1
     fi
@@ -349,6 +351,7 @@ grep -q '^Volume=/var/lib/service-data/smarthome/zigbee2mqtt:/app/data:Z$' "${zi
 grep -q '^PublishPort=127\.0\.0\.1:14002:8080/tcp$' "${zigbee2mqtt_quadlet}"
 grep -q '^AddDevice=/dev/serial/by-id/usb-dresden_elektronik_ConBee_III_DE03110622-if00-port0:/dev/ttyUSB0$' \
     "${zigbee2mqtt_quadlet}"
+grep -q '^SecurityLabelDisable=true$' "${zigbee2mqtt_quadlet}"
 grep -q '^Volume=/etc/container-services/smarthome/mosquitto:/mosquitto/config:ro,Z$' "${mosquitto_quadlet}"
 grep -q '^ConditionPathExists=/etc/container-services/smarthome/mosquitto/mosquitto.passwd$' "${mosquitto_quadlet}"
 if grep -q '^PublishPort=' "${mosquitto_quadlet}"; then
@@ -515,6 +518,27 @@ grep -q '<service name="http"/>' "${firewalld_zone}"
 grep -q '<service name="https"/>' "${firewalld_zone}"
 grep -q '<port port="443" protocol="udp"/>' "${firewalld_zone}"
 grep -q '<port port="2222" protocol="tcp"/>' "${firewalld_zone}"
+grep -q '<port port="41641" protocol="udp"/>' "${firewalld_zone}"
+if grep -Eq '<(forward|masquerade)/>' "${firewalld_zone}"; then
+    echo "Fehler: die oeffentliche Zone darf nicht routen; nur Tailnet-Verkehr wird weitergeleitet." >&2
+    exit 1
+fi
+tailscale_zone="${repo_root}/files/luebeck/etc/firewalld/zones/tailscale.xml"
+tailscale_policy="${repo_root}/files/luebeck/etc/firewalld/policies/tailscale-exit-node.xml"
+grep -q '<interface name="tailscale0"/>' "${tailscale_zone}"
+grep -q '<ingress-zone name="tailscale"/>' "${tailscale_policy}"
+grep -q '<egress-zone name="public"/>' "${tailscale_policy}"
+grep -q '<masquerade/>' "${tailscale_policy}"
+grep -q 'pkgs.tailscale.com/stable/fedora/tailscale.repo' "${repo_root}/recipes/luebeck.yml"
+grep -q '^        - tailscaled.service$' "${repo_root}/recipes/luebeck.yml"
+tailscale_dropin="${repo_root}/files/luebeck/usr/lib/systemd/system/tailscaled.service.d/10-service-data.conf"
+grep -q '^RequiresMountsFor=/var/lib/service-data/tailscale$' "${tailscale_dropin}"
+grep -q -- '--state=/var/lib/service-data/tailscale/tailscaled.state' "${tailscale_dropin}"
+grep -q '^v /var/lib/service-data/tailscale 0700 root root -$' \
+    "${repo_root}/files/luebeck/usr/lib/tmpfiles.d/service-data.conf"
+tailscale_sysctl="${repo_root}/files/luebeck/etc/sysctl.d/90-tailscale-exit-node.conf"
+grep -q '^net\.ipv4\.ip_forward = 1$' "${tailscale_sysctl}"
+grep -q '^net\.ipv6\.conf\.all\.forwarding = 1$' "${tailscale_sysctl}"
 if rg -ni 'forward-port|11000|11001|12000' \
     "${repo_root}/files" "${repo_root}/recipes" "${repo_root}/ignition"; then
     echo "Fehler: Die entfernten Firewall-Portweiterleitungen werden noch referenziert." >&2

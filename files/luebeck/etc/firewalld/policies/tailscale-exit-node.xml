@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<policy target="ACCEPT">
+  <short>Tailscale exit node</short>
+  <description>Forward and masquerade tailnet traffic to the internet.</description>
+  <ingress-zone name="tailscale"/>
+  <egress-zone name="public"/>
+  <masquerade/>
+</policy>

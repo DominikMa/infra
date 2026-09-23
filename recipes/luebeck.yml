@@ -11,6 +11,14 @@ platforms:
 modules:
   - from-file: common.yml
 
+  - type: dnf
+    repos:
+      files:
+        - https://pkgs.tailscale.com/stable/fedora/tailscale.repo
+    install:
+      packages:
+        - tailscale
+
   - type: files
     files:
       - source: luebeck
@@ -24,6 +32,7 @@ modules:
     system:
       enabled:
         - service-data.service
+        - tailscaled.service
         - image-update.timer
       masked:
         - zincati.service

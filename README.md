@@ -246,8 +246,27 @@ offiziellen Beispiel von v0.29.3 mit den Werten der vorherigen Installation:
 registrierte Clients nicht neu angemeldet werden muessen. Datenbank und
 Noise-Schluessel liegen im Subvolume `/var/lib/service-data/headscale`, das nach
 `/var/lib/headscale` gemountet wird. Die `extra_records` der MagicDNS-Konfiguration
-zeigen noch auf `100.64.0.6`, den Tailnet-Knoten `home` der vorherigen
-Installation.
+zeigen auf `100.64.0.6`, die Tailnet-Adresse von `luebeck`.
+
+### Tailscale und Exit-Node
+
+`luebeck` ist mit dem Paket `tailscale` aus dem offiziellen Repository selbst
+Mitglied des Tailnets, als `100.64.0.6` beziehungsweise `fd7a:115c:a1e0::6`,
+und bietet sich als Exit-Node an. `tailscaled` meldet sich ueber
+`https://headscale.mairhoefer.xyz` am lokal laufenden Headscale an. Die
+Knotenidentitaet liegt nicht unter `/var/lib/tailscale`, sondern im root-eigenen
+Subvolume `/var/lib/service-data/tailscale`, damit sie wie die Service-Daten eine
+Neuinstallation uebersteht und `luebeck` seine Adresse behaelt. MagicDNS wird
+auf dem Host nicht verwendet (`--accept-dns=false`), damit dessen
+Namensaufloesung nicht vom Tailnet abhaengt.
+
+`tailscale0` liegt in der eigenen firewalld-Zone `tailscale`, die SSH, DNS,
+HTTP(S), HTTP/3 und OneDev-SSH erlaubt; damit greift auch Caddys
+`internal_clients`-Snippet fuer `100.64.0.0/24`. Die Policy
+`tailscale-exit-node` leitet nur Verkehr aus dieser Zone in die Zone `public`
+weiter und maskiert ihn; dafuer ist IP-Forwarding fuer IPv4 und IPv6 aktiviert.
+Die oeffentliche Zone selbst leitet weiterhin nichts weiter. UDP 41641 ist fuer
+direkte WireGuard-Verbindungen geoeffnet.
 
 ### Rootless AdGuard Home
 
@@ -315,7 +334,8 @@ unprivilegierte Host-Benutzer `smarthome`.
 
 Der ConBee-III-Stick wird per `AddDevice` als `/dev/ttyUSB0` durchgereicht. Die
 Udev-Regel `70-conbee.rules` uebergibt ihn anhand seiner Seriennummer an
-`smarthome`. Ohne eingesteckten Stick ueberspringt `ConditionPathExists` den
+`smarthome`. SELinux verbietet `container_t` den Zugriff auf `usbtty_device_t`,
+deshalb laeuft nur dieser Container mit `SecurityLabelDisable=true`. Ohne eingesteckten Stick ueberspringt `ConditionPathExists` den
 Zigbee2MQTT-Container; nach dem Einstecken startet ihn
 `/usr/libexec/service-containers start`.
 

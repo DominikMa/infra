@@ -15,6 +15,7 @@ Network=smarthome.network
 Timezone=Europe/Berlin
 Volume=/var/lib/service-data/smarthome/zigbee2mqtt:/app/data:Z
 AddDevice=/dev/serial/by-id/usb-dresden_elektronik_ConBee_III_DE03110622-if00-port0:/dev/ttyUSB0
+SecurityLabelDisable=true
 PublishPort=127.0.0.1:14002:8080/tcp
 ReadOnly=true
 NoNewPrivileges=true
