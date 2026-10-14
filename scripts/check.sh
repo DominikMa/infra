@@ -150,7 +150,7 @@ for subid_file in /etc/subuid /etc/subgid; do
 done
 grep -q '/etc/ssh/authorized_keys/headscale' "${repo_root}/ignition/luebeck.bu"
 grep -q '/etc/ssh/authorized_keys/adguard' "${repo_root}/ignition/luebeck.bu"
-for service_user in headscale adguard vaultwarden smarthome mealie onedev; do
+for service_user in headscale adguard vaultwarden smarthome mealie onedev rustfs; do
     grep -q "/etc/ssh/authorized_keys/${service_user}" "${repo_root}/ignition/luebeck.bu"
 done
 # sshd liest AuthorizedKeysFile mit den Rechten des Zielbenutzers.
@@ -169,6 +169,7 @@ grep -q '^u vaultwarden 1013 .* /var/home/vaultwarden /bin/fish$' "${sysusers}"
 grep -q '^u smarthome 1014 .* /var/home/smarthome /bin/fish$' "${sysusers}"
 grep -q '^u mealie 1015 .* /var/home/mealie /bin/fish$' "${sysusers}"
 grep -q '^u onedev 1016 .* /var/home/onedev /bin/fish$' "${sysusers}"
+grep -q '^u rustfs 1017 .* /var/home/rustfs /bin/fish$' "${sysusers}"
 tmpfiles="${repo_root}/files/luebeck/usr/lib/tmpfiles.d/service-data.conf"
 grep -q '^d /var/home/headscale 0750 1010 1010 -$' "${tmpfiles}"
 grep -q '^d /var/home/caddy 0750 1011 1011 -$' "${tmpfiles}"
@@ -177,7 +178,7 @@ grep -q '^v /var/lib/service-data/headscale 0750 1010 1010 -$' "${tmpfiles}"
 grep -q '^v /var/lib/service-data/caddy 0750 1011 1011 -$' "${tmpfiles}"
 grep -q '^v /var/lib/service-data/adguard 0750 1012 1012 -$' "${tmpfiles}"
 grep -q '^d /var/lib/service-data/adguard/data 0750 1012 1012 -$' "${tmpfiles}"
-for service_uid in vaultwarden:1013 smarthome:1014 mealie:1015 onedev:1016; do
+for service_uid in vaultwarden:1013 smarthome:1014 mealie:1015 onedev:1016 rustfs:1017; do
     service=${service_uid%%:*}
     uid=${service_uid#*:}
     grep -q "^d /var/home/${service} 0750 ${uid} ${uid} -$" "${tmpfiles}"
@@ -203,10 +204,11 @@ for expected_subid in \
     vaultwarden:500000:65536 \
     smarthome:600000:65536 \
     mealie:700000:65536 \
-    onedev:800000:65536; do
+    onedev:800000:65536 \
+    rustfs:900000:65536; do
     [[ $(grep -Fxc "${expected_subid}" "${subid_ignition}") -eq 1 ]]
 done
-[[ $(wc -l < "${subid_ignition}") -eq 8 ]]
+[[ $(wc -l < "${subid_ignition}") -eq 9 ]]
 if rg -n 'configure-luebeck-subids|SUBID_ROOT' \
     "${repo_root}/files" "${repo_root}/recipes" "${repo_root}/ignition"; then
     echo "Fehler: die entfernte Build-Zeit-SubID-Provisionierung wird noch referenziert." >&2
@@ -218,7 +220,7 @@ config_owner_script="${repo_root}/files/scripts/configure-luebeck-config-ownersh
     exit 1
 }
 bash -n "${config_owner_script}"
-for uid in 1010 1011 1012 1013 1014; do
+for uid in 1010 1011 1012 1013 1014 1017; do
     grep -q "\"${uid}:${uid}:" "${config_owner_script}"
 done
 grep -q 'configure-luebeck-config-ownership.sh' "${repo_root}/recipes/luebeck.yml"
@@ -231,7 +233,9 @@ grep -q '^mac-address=A8:B8:E0:05:92:E5$' "${network_profile}"
 grep -q '^autoconnect-ports=1$' "${network_profile}"
 grep -q '^stp=false$' "${network_profile}"
 grep -q '^address1=192\.168\.7\.10/24$' "${network_profile}"
-grep -q '^dns=192\.168\.7\.1;$' "${network_profile}"
+grep -q '^dns=192\.168\.7\.10;1\.1\.1\.3;$' "${network_profile}"
+grep -q '^dns=2a02:8108:142b:ed00:5516:4aac:9e0a:3c00;2606:4700:4700::1113;$' "${network_profile}"
+[[ $(grep -c '^ignore-auto-dns=yes$' "${network_profile}") -eq 2 ]]
 grep -q '^gateway=192\.168\.7\.1$' "${network_profile}"
 grep -q '^address1=2a02:8108:142b:ed00:5516:4aac:9e0a:3c00/64$' "${network_profile}"
 grep -q '^address2=2a02:8108:142b:ed00:3053:ee4e:e36d:61d8/64$' "${network_profile}"
@@ -270,7 +274,7 @@ grep -q '^ListenAddress 0\.0\.0\.0:22$' "${ssh_listeners}"
 grep -q '^ListenAddress \[2a02:8108:142b:ed00:5516:4aac:9e0a:3c00\]:22$' \
     "${ssh_listeners}"
 [[ $(grep -c '^ListenAddress ' "${ssh_listeners}") -eq 2 ]]
-grep -q '^Match User headscale,adguard,vaultwarden,smarthome,mealie,onedev$' "${ssh_config}"
+grep -q '^Match User headscale,adguard,vaultwarden,smarthome,mealie,onedev,rustfs$' "${ssh_config}"
 grep -q 'AuthenticationMethods publickey' "${ssh_config}"
 grep -q 'AuthorizedKeysFile /etc/ssh/authorized_keys/%u' "${ssh_config}"
 grep -q 'AllowTcpForwarding no' "${ssh_config}"
@@ -284,9 +288,10 @@ zigbee2mqtt_quadlet="${repo_root}/files/luebeck/etc/containers/systemd/users/101
 mosquitto_quadlet="${repo_root}/files/luebeck/etc/containers/systemd/users/1014/mosquitto.container"
 mealie_quadlet="${repo_root}/files/luebeck/etc/containers/systemd/users/1015/mealie.container"
 onedev_quadlet="${repo_root}/files/luebeck/etc/containers/systemd/users/1016/onedev.container"
+rustfs_quadlet="${repo_root}/files/luebeck/etc/containers/systemd/users/1017/rustfs.container"
 mapfile -t all_quadlets < <(find "${repo_root}/files/luebeck/etc/containers/systemd/users" \
     -type f -name '*.container' | sort)
-[[ ${#all_quadlets[@]} -eq 9 ]]
+[[ ${#all_quadlets[@]} -eq 10 ]]
 for quadlet in "${all_quadlets[@]}"; do
     grep -q '^Restart=on-failure$' "${quadlet}"
     grep -q '^RestartSec=30s$' "${quadlet}"
@@ -300,7 +305,7 @@ for quadlet in "${all_quadlets[@]}"; do
         exit 1
     fi
 done
-for uid in 1010 1011 1012 1013 1014 1015 1016; do
+for uid in 1010 1011 1012 1013 1014 1015 1016 1017; do
     user_dropin="${repo_root}/files/luebeck/usr/lib/systemd/system/user@${uid}.service.d/10-service-data.conf"
     grep -q '^Requires=service-data.service$' "${user_dropin}"
     grep -q '^Wants=network-online.target$' "${user_dropin}"
@@ -378,6 +383,21 @@ grep -q '^Volume=%t/podman/podman.sock:/var/run/docker.sock$' "${onedev_quadlet}
 grep -q '^Requires=podman.socket$' "${onedev_quadlet}"
 grep -q '^PublishPort=127\.0\.0\.1:16001:6610/tcp$' "${onedev_quadlet}"
 grep -q '^PublishPort=2222:6611/tcp$' "${onedev_quadlet}"
+grep -q '^Image=docker.io/rustfs/rustfs:latest$' "${rustfs_quadlet}"
+grep -q '^Network=rustfs.network$' "${rustfs_quadlet}"
+grep -q '^UserNS=keep-id:uid=10001,gid=10001$' "${rustfs_quadlet}"
+grep -q '^Volume=/var/lib/service-data/rustfs:/data:Z$' "${rustfs_quadlet}"
+grep -q '^PublishPort=127\.0\.0\.1:17001:9000/tcp$' "${rustfs_quadlet}"
+grep -q '^PublishPort=127\.0\.0\.1:17002:9001/tcp$' "${rustfs_quadlet}"
+[[ $(grep -c '^PublishPort=' "${rustfs_quadlet}") -eq 2 ]]
+grep -q '^EnvironmentFile=/etc/container-services/rustfs/rustfs.env$' "${rustfs_quadlet}"
+grep -q '^ConditionPathExists=/etc/container-services/rustfs/rustfs.env$' "${rustfs_quadlet}"
+if grep -Eq '^Environment=RUSTFS_(ACCESS|SECRET)_KEY=' "${rustfs_quadlet}"; then
+    echo "Fehler: RustFS-Zugangsdaten gehoeren in die lokale rustfs.env." >&2
+    exit 1
+fi
+[[ -f "${repo_root}/files/luebeck/etc/container-services/rustfs/rustfs.env.example" ]]
+[[ ! -e "${repo_root}/files/luebeck/etc/container-services/rustfs/rustfs.env" ]]
 [[ $(readlink "${repo_root}/files/luebeck/etc/systemd/user/timers.target.wants/podman-auto-update.timer") == \
     "/usr/lib/systemd/user/podman-auto-update.timer" ]]
 grep -q '^Volume=/var/lib/service-data/vaultwarden:/data:Z$' "${vaultwarden_quadlet}"
@@ -467,11 +487,21 @@ grep -q '^mealie\.home\.mairhoefer\.xyz {$' "${caddy_services}/mealie.caddyfile"
 grep -q '^\s*reverse_proxy 127\.0\.0\.1:15001$' "${caddy_services}/mealie.caddyfile"
 grep -q '^git\.home\.mairhoefer\.xyz {$' "${caddy_services}/onedev.caddyfile"
 grep -q '^\s*reverse_proxy 127\.0\.0\.1:16001$' "${caddy_services}/onedev.caddyfile"
+rustfs_caddyfile="${caddy_services}/rustfs.caddyfile"
+grep -q '^s3\.mairhoefer\.xyz, s3\.home\.mairhoefer\.xyz {$' "${rustfs_caddyfile}"
+grep -q '^\s*@admin_api path /rustfs/admin/\* /minio/admin/\*$' "${rustfs_caddyfile}"
+grep -q '^s3-admin\.home\.mairhoefer\.xyz {$' "${rustfs_caddyfile}"
+[[ $(grep -c '^\s*import internal_clients$' "${rustfs_caddyfile}") -eq 2 ]]
+[[ $(grep -c '^\s*handle @internal_clients {$' "${rustfs_caddyfile}") -eq 2 ]]
+# Die Konsole bleibt intern; nur die S3-API ist oeffentlich.
+grep -B5 '^\s*reverse_proxy 127\.0\.0\.1:17002$' "${rustfs_caddyfile}" | \
+    grep -q '^\s*handle @internal_clients {$'
+[[ $(grep -c '^\s*reverse_proxy 127\.0\.0\.1:17002$' "${rustfs_caddyfile}") -eq 1 ]]
 if grep -q 'header_up' "${caddy_services}"/*.caddyfile; then
     echo "Fehler: Caddy setzt die Proxy-Header bereits selbst." >&2
     exit 1
 fi
-grep -q 'reverse_proxy synology\.internal\.mairhoefer\.xyz:' "${synology_caddyfile}"
+grep -Eq 'reverse_proxy\s+(/\S+\s+)?192\.168\.7\.12:' "${synology_caddyfile}"
 if grep -q 'header_up' "${synology_caddyfile}"; then
     echo "Fehler: redundante manuelle Proxy-Header verbleiben in der Synology-Konfiguration." >&2
     exit 1
@@ -496,7 +526,7 @@ adguard_config="${repo_root}/files/luebeck/etc/container-services/adguard/AdGuar
 [[ -s "${adguard_config}" ]]
 grep -q '^schema_version: 34$' "${adguard_config}"
 grep -A3 '^  bind_hosts:$' "${adguard_config}" | grep -q '^    - 0\.0\.0\.0$'
-grep -A3 '^  bind_hosts:$' "${adguard_config}" | grep -q '^    - "::"$'
+grep -A3 '^  bind_hosts:$' "${adguard_config}" | grep -q "^    - '::'$"
 [[ $(grep -A3 '^  bind_hosts:$' "${adguard_config}" | grep -c '^    - ') -eq 2 ]]
 grep -A1 '^http:$' "${adguard_config}" | grep -q '^  address: 0\.0\.0\.0:80$'
 [[ ! -e "${repo_root}/files/luebeck/etc/headscale" ]]
@@ -572,7 +602,7 @@ grep -q '^ExecStartPre=/usr/libexec/ensure-service-config-ownership$' \
     exit 1
 }
 bash -n "${ensure_config_ownership}"
-for service_config in headscale caddy adguard vaultwarden smarthome; do
+for service_config in headscale caddy adguard vaultwarden smarthome rustfs; do
     grep -q "/etc/container-services/${service_config}" "${ensure_config_ownership}"
 done
 grep -q 'chown -R --no-dereference' "${ensure_config_ownership}"
@@ -608,7 +638,7 @@ fi
 
 quadlet_generator=/usr/lib/systemd/system-generators/podman-system-generator
 if [[ -x "${quadlet_generator}" ]]; then
-    for uid in 1010 1011 1012 1013 1014 1015 1016; do
+    for uid in 1010 1011 1012 1013 1014 1015 1016 1017; do
         QUADLET_UNIT_DIRS="${repo_root}/files/luebeck/etc/containers/systemd/users/${uid}" \
             "${quadlet_generator}" --user --dryrun >/dev/null
     done

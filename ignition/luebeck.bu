@@ -99,3 +99,11 @@ storage:
         id: 1016
       contents:
         local: local/luebeck/authorized_keys
+    - path: /etc/ssh/authorized_keys/rustfs
+      mode: 0600
+      user:
+        id: 1017
+      group:
+        id: 1017
+      contents:
+        local: local/luebeck/authorized_keys

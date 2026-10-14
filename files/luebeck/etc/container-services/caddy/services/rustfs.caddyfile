@@ -1,0 +1,30 @@
+s3.mairhoefer.xyz, s3.home.mairhoefer.xyz {
+	import internal_clients
+
+	@admin_api path /rustfs/admin/* /minio/admin/*
+	handle @admin_api {
+		handle @internal_clients {
+			reverse_proxy 127.0.0.1:17001
+		}
+
+		handle {
+			abort
+		}
+	}
+
+	handle {
+		reverse_proxy 127.0.0.1:17001
+	}
+}
+
+s3-admin.home.mairhoefer.xyz {
+	import internal_clients
+
+	handle @internal_clients {
+		reverse_proxy 127.0.0.1:17002
+	}
+
+	handle {
+		abort
+	}
+}

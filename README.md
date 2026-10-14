@@ -164,6 +164,7 @@ weiterhin immer.
 | `smarthome`   | 1014    | Home Assistant, Zigbee2MQTT, Mosquitto  | `127.0.0.1:14001/14002`|
 | `mealie`      | 1015    | Mealie                                  | `127.0.0.1:15001`      |
 | `onedev`      | 1016    | OneDev                                  | 2222, `127.0.0.1:16001`|
+| `rustfs`      | 1017    | RustFS                                  | `127.0.0.1:17001/17002`|
 
 Alle Homes sind normale Verzeichnisse unter
 `/var/home`; sie sind keine eigenen Subvolumes und enthalten nur reproduzierbaren
@@ -183,7 +184,7 @@ kopiert. Die Konfiguration der Container liegt getrennt von eventuell nativ
 installierten Diensten unter `/etc/container-services/<benutzer>`. Headscales
 `config.yaml`, Caddys `Caddyfile`, AdGuards `AdGuardHome.yaml` und Mosquittos
 `mosquitto.conf` sind deklarativ im Image enthalten. Geheimnisse wie
-`vaultwarden.env` und `mosquitto.passwd` liegen nur lokal auf dem Rechner; das
+`vaultwarden.env`, `rustfs.env` und `mosquitto.passwd` liegen nur lokal auf dem Rechner; das
 Image liefert jeweils eine `.example`-Datei, und `ConditionPathExists`
 verhindert den Containerstart, solange die echte Datei fehlt.
 
@@ -212,7 +213,8 @@ unbegrenzt neu erzeugt.
 
 Der lokale YubiKey-Key wird nicht ins OCI-Image aufgenommen. Ignition installiert
 ihn fuer `core` und zusaetzlich unter `/etc/ssh/authorized_keys/<benutzer>` fuer
-`headscale`, `adguard`, `vaultwarden`, `smarthome`, `mealie` und `onedev`. Das
+`headscale`, `adguard`, `vaultwarden`, `smarthome`, `mealie`, `onedev` und
+`rustfs`. Das
 Verzeichnis hat Modus `0755`, weil sshd die Datei mit den Rechten des
 Zielbenutzers liest; jede Schluesseldatei ist `0600` und gehoert ihrem Benutzer.
 Diese Benutzer erlauben
@@ -364,6 +366,27 @@ nicht erreicht. Der Socket gibt ohnehin volle
 Kontrolle ueber den Podman-Zustand von `onedev`; die Grenze bildet der
 unprivilegierte Host-Benutzer.
 
+### Rootless RustFS
+
+RustFS stellt einen S3-kompatiblen Objektspeicher bereit. Die S3-API ist als
+`127.0.0.1:17001` veroeffentlicht und von Caddy oeffentlich unter
+`s3.mairhoefer.xyz` und `s3.home.mairhoefer.xyz` erreichbar. Buckets werden
+path-style adressiert (`https://s3.mairhoefer.xyz/<bucket>/<key>`); fuer
+virtual-host-style waeren Wildcard-DNS und ein DNS-01-Zertifikat noetig. Caddy
+reicht den `Host`-Header unveraendert durch, damit SigV4-Signaturen gueltig
+bleiben. Die Admin-API unter `/rustfs/admin/` und `/minio/admin/` liegt auf
+demselben Port, wird aber nur fuer `internal_clients` weitergeleitet und sonst
+abgebrochen. Die Weboberflaeche (`127.0.0.1:17002`) ist ausschliesslich intern
+als `s3-admin.home.mairhoefer.xyz` erreichbar.
+
+Das Image laeuft als Benutzer 10001; `UserNS=keep-id:uid=10001,gid=10001` bildet
+ihn auf den Host-Benutzer `rustfs` ab, sodass die Objekte im Subvolume
+`/var/lib/service-data/rustfs` (im Container `/data`) direkt ihm gehoeren. Die
+Root-Zugangsdaten `RUSTFS_ACCESS_KEY` und `RUSTFS_SECRET_KEY` liegen nur in der
+lokalen Datei `/etc/container-services/rustfs/rustfs.env`; ohne sie startet der
+Container nicht. Fuer Anwendungen sollten in der Konsole eigene Benutzer mit
+eingeschraenkten Policies angelegt werden. Das Backup sichert wie bei allen
+Diensten das komplette Subvolume und damit saemtliche Bucket-Inhalte.
 
 ### Transparente Netzwerk-Bridge
 
