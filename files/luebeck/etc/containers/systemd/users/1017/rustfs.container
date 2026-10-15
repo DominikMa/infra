@@ -16,6 +16,9 @@ Timezone=Europe/Berlin
 UserNS=keep-id:uid=10001,gid=10001
 Environment=RUSTFS_VOLUMES=/data
 Environment=RUSTFS_ADDRESS=0.0.0.0:9000
+# Obsidian LiveSync greift direkt aus den Apps zu: Desktop (Electron),
+# iOS (Capacitor) und Android.
+Environment=RUSTFS_CORS_ALLOWED_ORIGINS=app://obsidian.md,capacitor://localhost,http://localhost
 Environment=RUSTFS_CONSOLE_ENABLE=true
 Environment=RUSTFS_CONSOLE_ADDRESS=0.0.0.0:9001
 Environment=RUSTFS_CONSOLE_CORS_ALLOWED_ORIGINS=https://s3-admin.home.mairhoefer.xyz

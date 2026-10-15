@@ -376,7 +376,9 @@ virtual-host-style waeren Wildcard-DNS und ein DNS-01-Zertifikat noetig. Caddy
 reicht den `Host`-Header unveraendert durch, damit SigV4-Signaturen gueltig
 bleiben. Die Admin-API unter `/rustfs/admin/` und `/minio/admin/` liegt auf
 demselben Port, wird aber nur fuer `internal_clients` weitergeleitet und sonst
-abgebrochen. Die Weboberflaeche (`127.0.0.1:17002`) ist ausschliesslich intern
+abgebrochen. Fuer Obsidian LiveSync erlaubt `RUSTFS_CORS_ALLOWED_ORIGINS`
+Browser-Zugriffe der Obsidian-Apps (`app://obsidian.md`, `capacitor://localhost`,
+`http://localhost`); andere Origins erhalten keine CORS-Header. Die Weboberflaeche (`127.0.0.1:17002`) ist ausschliesslich intern
 als `s3-admin.home.mairhoefer.xyz` erreichbar.
 
 Das Image laeuft als Benutzer 10001; `UserNS=keep-id:uid=10001,gid=10001` bildet

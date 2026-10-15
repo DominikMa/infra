@@ -386,6 +386,12 @@ grep -q '^PublishPort=2222:6611/tcp$' "${onedev_quadlet}"
 grep -q '^Image=docker.io/rustfs/rustfs:latest$' "${rustfs_quadlet}"
 grep -q '^Network=rustfs.network$' "${rustfs_quadlet}"
 grep -q '^UserNS=keep-id:uid=10001,gid=10001$' "${rustfs_quadlet}"
+grep -Fqx 'Environment=RUSTFS_CORS_ALLOWED_ORIGINS=app://obsidian.md,capacitor://localhost,http://localhost' \
+    "${rustfs_quadlet}"
+if grep -Eq '^Environment=RUSTFS_(CONSOLE_)?CORS_ALLOWED_ORIGINS=.*\*' "${rustfs_quadlet}"; then
+    echo "Fehler: RustFS-CORS braucht eine explizite Origin-Liste." >&2
+    exit 1
+fi
 grep -q '^Volume=/var/lib/service-data/rustfs:/data:Z$' "${rustfs_quadlet}"
 grep -q '^PublishPort=127\.0\.0\.1:17001:9000/tcp$' "${rustfs_quadlet}"
 grep -q '^PublishPort=127\.0\.0\.1:17002:9001/tcp$' "${rustfs_quadlet}"
